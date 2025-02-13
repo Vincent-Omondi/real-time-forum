@@ -72,6 +72,13 @@ func (pc *PostController) GetAllPosts() ([]models.Post, error) {
 
 func (pc *PostController) GetPostByID(postID string) (models.Post, error) {
 	var post models.Post
+	logger.Info("Attempting to fetch post with ID: %s", postID)
+
+	// Validate postID is a valid integer
+	if postID == "" {
+		return post, fmt.Errorf("post ID cannot be empty")
+	}
+
 	err := pc.DB.QueryRow(`
         SELECT id, title, user_id, author, category, likes, dislikes, 
                user_vote, content, timestamp, image_url 
@@ -82,9 +89,17 @@ func (pc *PostController) GetPostByID(postID string) (models.Post, error) {
 		&post.Category, &post.Likes, &post.Dislikes,
 		&post.UserVote, &post.Content, &post.Timestamp, &post.ImageUrl,
 	)
+
 	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Error("No post found with ID %s", postID)
+			return post, sql.ErrNoRows
+		}
+		logger.Error("Database error while fetching post %s: %v", postID, err)
 		return post, fmt.Errorf("failed to fetch post: %w", err)
 	}
+
+	logger.Info("Successfully fetched post with ID %s: %+v", postID, post)
 	return post, nil
 }
 
