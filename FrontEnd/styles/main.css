@@ -742,4 +742,182 @@ body {
     .sidebar.active {
         width: 100%;
     }
+}
+
+/* Post image styles */
+.post-image {
+    margin: 16px 0;
+    max-width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.post-image img {
+    width: 100%;
+    max-height: 600px;
+    object-fit: cover;
+    border-radius: 8px;
+    background-color: var(--bg-primary);
+}
+
+/* Comments section styles */
+.comments-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.comment-input-container {
+    margin-bottom: 24px;
+}
+
+.textarea-container {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.main-comment-input,
+.reply-input,
+.edit-comment-input {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    resize: vertical;
+    font-family: inherit;
+    margin-bottom: 8px;
+}
+
+.main-comment-input:focus,
+.reply-input:focus,
+.edit-comment-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.comment {
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background-color: var(--bg-primary);
+}
+
+.comment.depth-1 { margin-left: 24px; }
+.comment.depth-2 { margin-left: 48px; }
+.comment.depth-3 { margin-left: 72px; }
+.comment.depth-4 { margin-left: 96px; }
+.comment.depth-5 { margin-left: 120px; }
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.comment-content {
+    margin-bottom: 12px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.comment-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.reply-input-container {
+    display: none;
+    margin-top: 16px;
+}
+
+.reply-buttons,
+.edit-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.button-primary {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+}
+
+.button-primary:hover {
+    opacity: 0.9;
+}
+
+.button-secondary {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.button-secondary:hover {
+    background-color: var(--hover-bg);
+}
+
+.login-prompt {
+    text-align: center;
+    padding: 16px;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.login-prompt a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.login-prompt a:hover {
+    text-decoration: underline;
+}
+
+.back-button-container {
+    margin-bottom: 16px;
+}
+
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.back-button:hover {
+    background-color: var(--hover-bg);
+}
+
+.back-button i {
+    font-size: 14px;
 } 
