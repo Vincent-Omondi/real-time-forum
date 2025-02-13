@@ -127,7 +127,30 @@ func APIRoutes(db *sql.DB) {
 	))
 
 	http.Handle("/api/posts/", middleware.ApplyMiddleware(
-		handlers.NewViewPostHandler(db),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract post ID from URL path
+			path := r.URL.Path
+			logger.Info("Handling request for path: %s", path)
+
+			if path == "/api/posts/" {
+				logger.Info("Handling list posts request")
+				handlers.NewHomePageHandler(db).ServeHTTP(w, r)
+				return
+			}
+
+			// Extract post ID from the path
+			postID := path[len("/api/posts/"):]
+			logger.Info("Extracted post ID: %s", postID)
+			if postID == "" {
+				logger.Error("No post ID provided")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Handle single post view
+			logger.Info("Handling single post view request")
+			handlers.NewViewPostHandler(db).ServeHTTP(w, r)
+		}),
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
 		viewLimiter.RateLimit,
