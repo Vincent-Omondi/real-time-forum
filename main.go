@@ -68,12 +68,15 @@ func main() {
 		MaxHeaderBytes:    1 << 20,          // Max size of request headers (1 MB)
 	}
 
-	routes.HomeRoute(db)
+	// Register routes in the correct order
+	// 1. First serve static files
 	routes.ServeStaticFolder()
+
+	// 2. Register API routes
+	routes.APIRoutes(db)
+
+	// 3. Register OAuth routes (these don't need /api prefix)
 	routes.UserRegAndLogin(db)
-	routes.PostRoutes(db)
-	routes.CommentRoute(db)
-	routes.LikesRoutes(db)
 
 	// Run the server in a goroutine
 	go func() {
