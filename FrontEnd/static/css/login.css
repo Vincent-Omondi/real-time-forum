@@ -1,0 +1,229 @@
+:root {
+    /* Light theme variables */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f7f8;
+    --text-primary: #1c1c1c;
+    --text-secondary: #787c7e;
+    --accent-color: #FF4500;
+    --border-color: #edeff1;
+    --upvote-color: #FF4500;
+    --downvote-color: #7193FF;
+    --hover-bg: #f2f4f5;
+}
+
+[data-theme="dark"] {
+    /* Dark theme variables */
+    --bg-primary: #1A1A1B;
+    --bg-secondary: #272729;
+    --text-primary: #D7DADC;
+    --text-secondary: #818384;
+    --border-color: #343536;
+    --hover-bg: #2D2D2E;
+    --input-border: #4A4A4B;
+    --input-bg: #1A1A1B;
+    --input-text: #D7DADC;
+    --button-hover: #2D2D2E;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: var(--bg-primary);
+}
+
+.container {
+    background-color: var(--bg-secondary);
+    width: 410px;
+    height: 500px;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    display: flex;
+    position: relative;
+    padding-left: 20px;
+    padding-right: 50px;
+}
+
+.left-section {
+    background: var(--text-primary);
+    width: 50%;
+    /* color: red; */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    text-align: center;
+}
+
+.left-section h1 {
+    color: var(--bg-primary);
+    font-size: 28px;
+    margin-bottom: 10px;
+}
+
+.left-section p {
+    color: var(--bg-primary);
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.right-section {
+    width: 50%;
+    padding: 30px;
+}
+
+.form {
+    display: none;
+}
+
+.form.active {
+    display: block;
+    width: 400px;
+}
+
+.form h2 {
+    margin-bottom: 20px;
+    color: var(--text-primary);
+}
+
+.form input {
+    width: 100%;
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.form input:focus {
+    border-color: #00D4A1;
+    outline: none;
+}
+
+.form button {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+
+.form button:hover {
+    background: #1c1c1c;
+}
+
+.form small {
+    display: block;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.form small a {
+    color: #00D4A1;
+    text-decoration: none;
+}
+
+.toggle {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.toggle a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.toggle a:hover {
+    color: #1c1c1c;
+}
+
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.close-button:hover {
+    background: #1c1c1c;
+}
+/* Toast Container */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: -400px; 
+    background-color: #ff4444; 
+    color: white;
+    padding: 15px 25px;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    transition: right 0.5s ease-in-out; 
+    max-width:300px;
+}
+
+.password-container {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.password-container i {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 18px;
+}
+
+#signupToggle, #loginToggle, #confirmToggle {
+    padding-bottom: 15px;
+    margin-left: 25px;
+}
+
+/* Toast Message */
+.toast-message {
+    font-size: 14px;
+}
+
+/* Show Toast */
+.toast.show {
+    right: 20px; /* Slide into view */
+}
+
+/* .sign-up_button{
+    width: 420px;
+} */
+
+.sign-up_header{
+    text-align: center;
+    font-size: 120%;
+}

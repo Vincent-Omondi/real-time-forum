@@ -1,0 +1,84 @@
+{{define "title"}}Home - Forum{{end}}
+{{define "content"}}
+<div class="posts-container">
+    {{range .Posts}}
+    <div class="post" data-category="{{.Category}}" data-post-id="{{.ID}}" data-post-user-id="{{.UserID}}">
+        <div class="post-header">
+            <div class="post-info">
+                <div class="post-meta">
+                    <div class="post-author-info">
+                        <div class="author-initial">{{slice .Author 0 1}}</div>
+                        <span class="post-author">{{.Author}}</span>
+                    </div>
+                    <span class="timestamp" data-timestamp="{{.Timestamp.Format "2006-01-02T15:04:05Z07:00"}}"></span>
+                    <!-- <span class="post-category">{{.Category}}</span>                  -->
+                    <ul class="post-tags horizontal">
+                        {{range $index, $tag := split .Category ","}}
+                        <li class="tag">{{trim $tag}}</li>
+                        {{end}}
+                    </ul>
+                {{if .IsAuthor}}
+                <div class="post-options">
+                    <button class="options-btn">
+                        <i class="fa-solid fa-ellipsis"></i>
+                    </button>
+                    <div class="options-menu">
+                        <button class="option-item edit-post-btn" data-post-id="{{.ID}}">
+                            <i class="fa-solid fa-edit"></i> Edit
+                        </button>
+                        <button   class="option-item delete-post-btn" data-post-id="{{.ID}}">
+                            <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+                    {{end}}
+                    
+                </div>
+                <h3 class="post-title">
+                    <a href="/viewPost?id={{.ID}}">{{.Title}}</a>
+                </h3>
+            </div>
+        </div>
+        <div class="post-content">
+            {{if gt (len .Content) 300}}
+                {{slice .Content 0 300}}...
+                <a href="/viewPost?id={{.ID}}" class="read-more">Read more</a>
+            {{else}}
+                {{.Content}}
+            {{end}}
+        </div>
+        {{if .ImageUrl.Valid}}
+        <div class="post-image">
+            <img src="{{.ImageUrl.String}}" alt="Post image" loading="lazy">
+        </div>
+        {{end}}
+        <div class="post-footer">
+            <div class="footer-icons">
+                <div class="vote-buttons">
+                    <button class="vote-button" id="Like" data-postId="{{.ID}}">
+                        <i class="fa-regular fa-thumbs-up"></i>
+                    </button>
+                    <div class="counter" id="likes-container-{{.ID}}">{{.Likes}}</div>
+                    <button class="vote-button" id="DisLike" data-postId="{{.ID}}">
+                        <i class="fa-regular fa-thumbs-down"></i>
+                    </button>
+                    <div class="counter" id="dislikes-container-{{.ID}}">{{.Dislikes}}</div>
+                </div>
+                <div class="comments-count">
+                    <a href="/viewPost?id={{.ID}}#commentText">
+                        <i class="fa-regular fa-comment"></i>
+                        <span class="counter" id="comments-count-{{.ID}}">{{.CommentCount}}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{end}}
+{{define "scripts"}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.29.0/feather.min.js"></script>
+<script src="../static/js/homepage.js"></script>
+<script src="../static/js/theme.js"></script>
+<script src="../static/js/vote.js"></script>
+{{end}} 
