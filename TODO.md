@@ -116,3 +116,74 @@ Background Jobs: Improves responsiveness for heavy operations
 The reload of the page whenever a user loggs in with either Google or Github.
 The buttons of the Google and Github sign in to also function the same way as the one in the login form.
 Readme update. 
+
+
+## File system
+```
+real-time-forum/
+├── README.md
+├── go.mod
+├── go.sum
+├── main.go                   # Entry point: initializes config, DB, routes & WebSocket hubs
+├── .gitignore
+├── Dockerfile                # Container definition for easy deployment
+├── run.sh                    # Startup script (or integration with docker-compose if needed)
+├── BackEnd/
+│   ├── config/               # App configuration (env variables, database settings, etc.)
+│   │   └── config.go
+│   ├── controllers/          # HTTP handlers for REST endpoints (Auth, Posts, Comments, Messaging, Notifications)
+│   │   ├── authController.go
+│   │   ├── postController.go
+│   │   ├── commentController.go
+│   │   ├── messageController.go
+│   │   └── notificationController.go
+│   ├── middleware/           # Authentication, session, logging, and other cross‑cutting concerns
+│   │   ├── authMiddleware.go
+│   │   └── loggingMiddleware.go
+│   ├── models/               # Database models and related methods
+│   │   ├── user.go           # User model (registration, login, password hashing using bcrypt)
+│   │   ├── post.go
+│   │   ├── comment.go
+│   │   ├── message.go         # Private messages with fields like sender, receiver, date, content
+│   │   └── category.go
+│   ├── database/             # SQLite integration and migrations
+│   │   ├── sqlite.go         # DB connection & query helpers
+│   │   └── migrations/
+│   │       └── initial.sql   # Schema definitions (users, posts, comments, messages, etc.)
+│   ├── routes/               # Route definitions mapping endpoints to controllers
+│   │   └── routes.go
+│   ├── services/             # Business logic layer for each domain
+│   │   ├── authService.go
+│   │   ├── postService.go
+│   │   ├── commentService.go
+│   │   ├── messageService.go
+│   │   └── notificationService.go
+│   ├── websockets/           # Real‑time communication for private messages & notifications using Gorilla WebSocket
+│   │   └── ws.go
+│   └── logger/               # Structured logging (errors, API requests, etc.)
+│       └── logger.go
+├── FrontEnd/
+│   ├── index.html            # Single page; all content is dynamically rendered
+│   ├── css/
+│   │   └── styles.css        # Global styling (with responsive design for dynamic elements)
+│   ├── js/
+│   │   ├── app.js            # Main entry point; initializes routing, event listeners, WebSocket connections
+│   │   ├── components/       # Reusable UI components for SPA views
+│   │   │   ├── auth.js       # Handles registration, login, logout, session management
+│   │   │   ├── posts.js      # Manages post creation, feed display, filtering by category/user
+│   │   │   ├── comments.js   # Loads and displays comments on demand (with dynamic fetching)
+│   │   │   ├── messages.js   # Private messaging UI with lazy loading (throttled scroll event)
+│   │   │   └── notifications.js  # Real‑time notifications (new messages, post interactions)
+│   │   ├── services/         # Modules that abstract API calls and WebSocket communication
+│   │   │   ├── api.js        # AJAX calls to the Golang backend (registration, posts, etc.)
+│   │   │   └── wsClient.js   # Manages WebSocket connections (receiving messages & notifications)
+│   │   └── utils/            # Utility functions (e.g., debounce/throttle for lazy loading)
+│   │       ├── debounce.js
+│   │       └── helper.js
+│   └── assets/               # Additional front‑end assets (images, icons, etc.)
+│       └── images/
+├── uploads/                  # For user-uploaded files (profile pictures, attachments)
+│   └── user_uploads/
+└── logs/                     # Log files for monitoring errors and API usage
+    └── app.log
+```
