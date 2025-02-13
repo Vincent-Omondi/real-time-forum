@@ -97,9 +97,9 @@ function createPostHTML(post) {
                     : post.Content
                 }
             </div>
-            ${post.ImageUrl ? `
+            ${post.ImageUrl && post.ImageUrl.Valid ? `
                 <div class="post-image">
-                    <img src="${post.ImageUrl}" alt="Post image" loading="lazy">
+                    <img src="${post.ImageUrl.String}" alt="Post image" loading="lazy">
                 </div>
             ` : ''}
             <div class="post-footer">
