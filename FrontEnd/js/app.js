@@ -4,36 +4,7 @@ import { initPosts } from './components/posts.js';
 import { initComments } from './components/comments.js';
 import { initMessages } from './components/messages.js';
 import { initNotifications } from './components/notifications.js';
-
-// Theme management
-class ThemeManager {
-    constructor() {
-        this.theme = localStorage.getItem('theme') || 'light';
-        this.initializeTheme();
-        this.setupStorageListener();
-    }
-
-    initializeTheme() {
-        document.documentElement.setAttribute('data-theme', this.theme);
-        document.body.classList.remove('light-theme', 'dark-theme');
-        document.body.classList.add(`${this.theme}-theme`);
-    }
-
-    toggleTheme() {
-        this.theme = this.theme === 'light' ? 'dark' : 'light';
-        localStorage.setItem('theme', this.theme);
-        this.initializeTheme();
-    }
-
-    setupStorageListener() {
-        window.addEventListener('storage', (event) => {
-            if (event.key === 'theme') {
-                this.theme = event.newValue;
-                this.initializeTheme();
-            }
-        });
-    }
-}
+import { initTheme } from './utils/theme.js';
 
 // Router configuration
 const routes = {
@@ -41,7 +12,7 @@ const routes = {
     '/login': 'login',
     '/register': 'register',
     '/posts': 'posts',
-    '/post/': 'viewPost',  // Will be followed by post ID
+    '/viewPost': 'viewPost',
     '/messages': 'messages',
     '/profile': 'profile'
 };
@@ -51,11 +22,6 @@ const components = {
     home: async () => {
         const container = document.getElementById('app-container');
         container.innerHTML = `
-            <div class="header-actions">
-                <button id="theme-toggle" onclick="window.themeManager.toggleTheme()">
-                    Toggle Theme
-                </button>
-            </div>
             <div class="posts-container"></div>
         `;
         await initPosts();
@@ -77,6 +43,21 @@ const components = {
             </div>
         `;
         initAuth();
+    },
+    viewPost: async () => {
+        const container = document.getElementById('app-container');
+        const urlParams = new URLSearchParams(window.location.search);
+        const postId = urlParams.get('id');
+        
+        if (!postId) {
+            container.innerHTML = '<div class="error">Post not found</div>';
+            return;
+        }
+
+        const ViewPost = (await import('./components/viewPost.js')).default;
+        const viewPostComponent = new ViewPost();
+        container.innerHTML = await viewPostComponent.getHtml();
+        await viewPostComponent.afterRender();
     },
     // Add other component render functions here
 };
@@ -156,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ws = initWebSocket();
     
     // Initialize theme manager
-    window.themeManager = new ThemeManager();
+    initTheme();
     
     // Make WebSocket instance available globally
     window.forumWS = ws;
