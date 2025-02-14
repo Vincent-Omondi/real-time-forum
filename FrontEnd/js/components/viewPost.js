@@ -82,85 +82,92 @@ export default class ViewPost {
         const isAuthor = this.user && this.user.id === this.post.UserID;
 
         return `
-            <div class="view-post-container">
-                <button class="back-button" onclick="history.back()">
-                    <i class="fa-solid fa-arrow-left"></i> Back
-                </button>
-
-                <div class="post-details">
+            <div class="posts-container">
+                <div class="back-button-container">
+                    <button onclick="history.back()" class="back-button">
+                        <i class="fa-solid fa-arrow-left"></i> Back
+                    </button>
+                </div>
+                <div class="post" data-category="${this.post.Category}" data-post-id="${this.post.ID}" data-post-user-id="${this.post.UserID}">
                     <div class="post-header">
-                        <div class="post-meta">
-                            <div class="author-info">
-                                <div class="author-initial">${this.post.Author.charAt(0)}</div>
-                                <span class="author-name">${this.post.Author}</span>
-                            </div>
-                            <span class="timestamp" data-timestamp="${this.post.Timestamp}"></span>
-                            <ul class="post-tags horizontal">
-                                ${this.post.Category.split(',').map(tag => `
-                                    <li class="tag">${tag.trim()}</li>
-                                `).join('')}
-                            </ul>
-                            ${isAuthor ? `
-                                <div class="post-options">
-                                    <button class="options-btn">
-                                        <i class="fa-solid fa-ellipsis"></i>
-                                    </button>
-                                    <div class="options-menu">
-                                        <button class="option-item edit-post-btn" data-post-id="${this.post.ID}">
-                                            <i class="fa-solid fa-edit"></i> Edit
-                                        </button>
-                                        <button class="option-item delete-post-btn" data-post-id="${this.post.ID}">
-                                            <i class="fa-solid fa-trash"></i> Delete
-                                        </button>
-                                    </div>
+                        <div class="post-info">
+                            <div class="post-meta">
+                                <div class="post-author-info">
+                                    <div class="author-initial">${this.post.Author.charAt(0)}</div>
+                                    <span class="post-author">${this.post.Author}</span>
                                 </div>
-                            ` : ''}
+                                <span class="timestamp" data-timestamp="${this.post.Timestamp}"></span>
+                                <ul class="post-tags horizontal">
+                                    ${this.post.Category.split(',').map(tag => `
+                                        <li class="tag">${tag.trim()}</li>
+                                    `).join('')}
+                                </ul>
+                                ${isAuthor ? `
+                                    <div class="post-options">
+                                        <button class="options-btn">
+                                            <i class="fa-solid fa-ellipsis"></i>
+                                        </button>
+                                        <div class="options-menu">
+                                            <button class="option-item edit-post-btn" data-post-id="${this.post.ID}">
+                                                <i class="fa-solid fa-edit"></i> Edit
+                                            </button>
+                                            <button class="option-item delete-post-btn" data-post-id="${this.post.ID}">
+                                                <i class="fa-solid fa-trash"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <h3 class="post-title">${this.post.Title}</h3>
                         </div>
-                        <h1 class="post-title">${this.post.Title}</h1>
                     </div>
-
-                    <div class="post-content">
-                        ${this.post.Content}
-                    </div>
-
+                    <div class="post-content">${this.post.Content}</div>
                     ${this.post.ImageUrl && this.post.ImageUrl.Valid ? `
                         <div class="post-image">
                             <img src="${this.post.ImageUrl.String}" alt="Post image" loading="lazy">
                         </div>
                     ` : ''}
-
                     <div class="post-footer">
-                        <div class="vote-buttons">
-                            <button class="vote-button" id="post-like-${this.post.ID}" data-post-id="${this.post.ID}">
-                                <i class="fa-regular fa-thumbs-up"></i>
-                            </button>
-                            <span class="counter" id="post-likes-${this.post.ID}">${this.post.Likes || 0}</span>
-                            <button class="vote-button" id="post-dislike-${this.post.ID}" data-post-id="${this.post.ID}">
-                                <i class="fa-regular fa-thumbs-down"></i>
-                            </button>
-                            <span class="counter" id="post-dislikes-${this.post.ID}">${this.post.Dislikes || 0}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="comments-section">
-                    <h3>Comments (${this.comments.length})</h3>
-                    ${this.user ? `
-                        <div class="comment-input-container">
-                            <textarea id="commentText" placeholder="Write a comment..."></textarea>
-                            <div class="comment-actions">
-                                <button id="submitComment" class="primary-button">Comment</button>
+                        <div class="footer-icons">
+                            <div class="vote-buttons">
+                                <button class="vote-button ${userVotes[this.post.ID] === 'like' ? 'active' : ''}" id="Like" data-postId="${this.post.ID}">
+                                    <i class="fa-regular fa-thumbs-up"></i>
+                                </button>
+                                <div class="counter" id="likes-container-${this.post.ID}">${this.post.Likes || 0}</div>
+                                <button class="vote-button ${userVotes[this.post.ID] === 'dislike' ? 'dactive' : ''}" id="DisLike" data-postId="${this.post.ID}">
+                                    <i class="fa-regular fa-thumbs-down"></i>
+                                </button>
+                                <div class="counter" id="dislikes-container-${this.post.ID}">${this.post.Dislikes || 0}</div>
+                            </div>
+                            <div class="comments-count">
+                                <a href="#commentText">
+                                    <i class="fa-regular fa-comment"></i>
+                                    <span class="counter" id="comments-count-${this.post.ID}">${this.comments.length}</span>
+                                </a>
                             </div>
                         </div>
-                    ` : `
-                        <div class="login-prompt">
-                            <p>Please <a href="/login" data-link>login</a> to comment</p>
+
+                        <div class="comments-section">
+                            ${this.user ? `
+                                <div class="comment-input-container">
+                                    <div class="textarea-container">
+                                        <textarea class="main-comment-input" placeholder="Write a comment..." id="commentText"></textarea>
+                                        <button class="button button-primary comment-button" data-post-id="${this.post.ID}">Comment</button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <p class="login-prompt">Please <a href="/login" data-link>login</a> to comment</p>
+                            `}
+
+                            <div class="comments-container" data-max-depth="5">
+                                ${this.renderComments(this.comments)}
+                            </div>
                         </div>
-                    `}
-                    <div class="comments-list">
-                        ${this.renderComments(this.comments)}
                     </div>
                 </div>
+            </div>
+            <div id="toast" class="toast">
+                <div id="toastMessage" class="toast-message"></div>
             </div>
         `;
     }
@@ -173,56 +180,58 @@ export default class ViewPost {
         if (filteredComments.length === 0) return '';
 
         return filteredComments.map(comment => `
-            <div class="comment depth-${depth}" id="comment-${comment.ID}">
+            <div class="comment depth-${depth}" data-comment-id="${comment.ID}">
                 <div class="comment-header">
-                    <div class="comment-meta">
-                        <div class="author-info">
-                            <div class="author-initial">${comment.Author.charAt(0)}</div>
-                            <span class="author-name">${comment.Author}</span>
-                        </div>
-                        <span class="timestamp" data-timestamp="${comment.Timestamp}"></span>
+                    <div class="post-author-info">
+                        <div class="author-initial">${comment.Author.charAt(0)}</div>
+                        <span class="comment-author">${comment.Author}</span>
                     </div>
-                    ${this.user && this.user.id === comment.UserID ? `
-                        <div class="comment-options">
-                            <button class="options-btn">
-                                <i class="fa-solid fa-ellipsis"></i>
-                            </button>
-                            <div class="options-menu">
-                                <button class="edit-comment-btn" data-comment-id="${comment.ID}">
-                                    <i class="fa-solid fa-edit"></i> Edit
+                    <div class="comment-meta">
+                        <span class="timestamp" data-timestamp="${comment.Timestamp}"></span>
+                        ${this.user && this.user.id === comment.UserID ? `
+                            <div class="comment-options">
+                                <button class="options-btn">
+                                    <i class="fa-solid fa-ellipsis"></i>
                                 </button>
-                                <button class="delete-comment-btn" data-comment-id="${comment.ID}">
-                                    <i class="fa-solid fa-trash"></i> Delete
-                                </button>
+                                <div class="options-menu">
+                                    <button class="option-item" id="edit-comment-${comment.ID}">
+                                        <i class="fa-solid fa-edit"></i> Edit
+                                    </button>
+                                    <button class="option-item" id="delete-comment-${comment.ID}">
+                                        <i class="fa-solid fa-trash"></i> Delete
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    ` : ''}
+                        ` : ''}
+                    </div>
                 </div>
-                <div class="comment-content" id="comment-content-${comment.ID}">
-                    ${comment.Content}
-                </div>
+                <div class="comment-content" id="comment-content-${comment.ID}">${comment.Content}</div>
                 <div class="comment-footer">
                     <div class="vote-buttons">
-                        <button class="vote-button" id="comment-like-${comment.ID}" data-comment-id="${comment.ID}">
+                        <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'like' ? 'active' : ''}" data-vote="up" data-comment-id="${comment.ID}">
                             <i class="fa-regular fa-thumbs-up"></i>
                         </button>
-                        <span class="counter" id="comment-likes-${comment.ID}">${comment.Likes || 0}</span>
-                        <button class="vote-button" id="comment-dislike-${comment.ID}" data-comment-id="${comment.ID}">
+                        <div class="counter" id="comment-likes-${comment.ID}">${comment.Likes || 0}</div>
+                        <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'dislike' ? 'dactive' : ''}" data-vote="down" data-comment-id="${comment.ID}">
                             <i class="fa-regular fa-thumbs-down"></i>
                         </button>
-                        <span class="counter" id="comment-dislikes-${comment.ID}">${comment.Dislikes || 0}</span>
+                        <div class="counter" id="comment-dislikes-${comment.ID}">${comment.Dislikes || 0}</div>
                     </div>
                     ${this.user && depth < 5 ? `
-                        <button class="reply-btn" data-comment-id="${comment.ID}">Reply</button>
+                        <div class="comment-actions">
+                            <button class="reply-button" onclick="showReplyForm(this)" data-comment-id="${comment.ID}">Reply</button>
+                        </div>
                     ` : ''}
                 </div>
-                <div class="reply-container" id="reply-container-${comment.ID}" style="display: none;">
-                    <textarea class="reply-input" id="reply-input-${comment.ID}" placeholder="Write a reply..."></textarea>
-                    <div class="reply-actions">
-                        <button class="submit-reply-btn primary-button" data-comment-id="${comment.ID}">Reply</button>
-                        <button class="cancel-reply-btn secondary-button" data-comment-id="${comment.ID}">Cancel</button>
+                
+                <div class="reply-input-container" id="reply-form-${comment.ID}">
+                    <textarea class="reply-input" id="replyText-${comment.ID}" placeholder="Write a reply..."></textarea>
+                    <div class="reply-buttons">
+                        <button class="button button-primary" onclick="submitReply(this)" data-comment-id="${comment.ID}" data-post-id="${this.post.ID}">Submit</button>
+                        <button class="button button-secondary" onclick="cancelReply(this)" data-comment-id="${comment.ID}">Cancel</button>
                     </div>
                 </div>
+
                 <div class="nested-comments">
                     ${this.renderComments(comments, comment.ID, depth + 1)}
                 </div>
@@ -244,13 +253,16 @@ export default class ViewPost {
     attachEventListeners() {
         if (this.user) {
             // Comment submission
-            const submitBtn = document.getElementById('submitComment');
-            if (submitBtn) {
-                submitBtn.addEventListener('click', () => this.submitComment());
+            const commentButton = document.querySelector('.comment-button');
+            if (commentButton) {
+                commentButton.addEventListener('click', (e) => {
+                    const postId = e.target.dataset.postId;
+                    this.submitComment(postId);
+                });
             }
 
             // Reply buttons
-            document.querySelectorAll('.reply-btn').forEach(button => {
+            document.querySelectorAll('.reply-button').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const commentId = e.target.dataset.commentId;
                     this.showReplyForm(commentId);
@@ -258,15 +270,16 @@ export default class ViewPost {
             });
 
             // Submit reply buttons
-            document.querySelectorAll('.submit-reply-btn').forEach(button => {
+            document.querySelectorAll('.button.button-primary[data-comment-id]').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const commentId = e.target.dataset.commentId;
-                    this.submitReply(commentId);
+                    const postId = e.target.dataset.postId;
+                    this.submitReply(commentId, postId);
                 });
             });
 
             // Cancel reply buttons
-            document.querySelectorAll('.cancel-reply-btn').forEach(button => {
+            document.querySelectorAll('.button.button-secondary[data-comment-id]').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const commentId = e.target.dataset.commentId;
                     this.cancelReply(commentId);
@@ -274,35 +287,36 @@ export default class ViewPost {
             });
 
             // Edit comment buttons
-            document.querySelectorAll('.edit-comment-btn').forEach(button => {
+            document.querySelectorAll('[id^="edit-comment-"]').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    const commentId = e.target.closest('[data-comment-id]').dataset.commentId;
+                    const commentId = e.target.id.replace('edit-comment-', '');
                     this.showEditCommentForm(commentId);
                 });
             });
 
             // Delete comment buttons
-            document.querySelectorAll('.delete-comment-btn').forEach(button => {
+            document.querySelectorAll('[id^="delete-comment-"]').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    const commentId = e.target.closest('[data-comment-id]').dataset.commentId;
+                    const commentId = e.target.id.replace('delete-comment-', '');
                     this.confirmDeleteComment(commentId);
                 });
             });
         }
 
         // Vote buttons for post
-        document.querySelectorAll('[id^="post-like-"], [id^="post-dislike-"]').forEach(button => {
+        document.querySelectorAll('[id="Like"], [id="DisLike"]').forEach(button => {
             button.addEventListener('click', (e) => {
-                const type = e.target.id.includes('like') ? 'like' : 'dislike';
-                this.handlePostVote(type);
+                const postId = e.target.dataset.postId;
+                const type = e.target.id === 'Like' ? 'like' : 'dislike';
+                this.handlePostVote(postId, type);
             });
         });
 
         // Vote buttons for comments
-        document.querySelectorAll('[id^="comment-like-"], [id^="comment-dislike-"]').forEach(button => {
+        document.querySelectorAll('.comment-vote').forEach(button => {
             button.addEventListener('click', (e) => {
-                const commentId = e.target.closest('[data-comment-id]').dataset.commentId;
-                const type = e.target.id.includes('like') ? 'like' : 'dislike';
+                const commentId = e.target.dataset.commentId;
+                const type = e.target.dataset.vote === 'up' ? 'like' : 'dislike';
                 this.handleCommentVote(commentId, type);
             });
         });
@@ -324,17 +338,17 @@ export default class ViewPost {
         });
     }
 
-    async submitComment() {
+    async submitComment(postId) {
         const textarea = document.getElementById('commentText');
         const content = textarea.value.trim();
 
         if (!content) {
-            alert('Please enter a comment');
+            this.showToast('Please enter a comment');
             return;
         }
 
         try {
-            const response = await fetch(`/api/posts/${this.postId}/comments`, {
+            const response = await fetch(`/api/posts/${postId}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -350,44 +364,44 @@ export default class ViewPost {
             window.location.reload();
         } catch (error) {
             console.error('Error submitting comment:', error);
-            alert('Failed to submit comment');
+            this.showToast('Failed to submit comment');
         }
     }
 
     showReplyForm(commentId) {
-        const container = document.getElementById(`reply-container-${commentId}`);
+        const container = document.getElementById(`reply-form-${commentId}`);
         if (container) {
             container.style.display = 'block';
         }
     }
 
     cancelReply(commentId) {
-        const container = document.getElementById(`reply-container-${commentId}`);
-        const input = document.getElementById(`reply-input-${commentId}`);
+        const container = document.getElementById(`reply-form-${commentId}`);
+        const input = document.getElementById(`replyText-${commentId}`);
         if (container && input) {
             container.style.display = 'none';
             input.value = '';
         }
     }
 
-    async submitReply(parentId) {
-        const textarea = document.getElementById(`reply-input-${parentId}`);
+    async submitReply(commentId, postId) {
+        const textarea = document.getElementById(`replyText-${commentId}`);
         const content = textarea.value.trim();
 
         if (!content) {
-            alert('Please enter a reply');
+            this.showToast('Please enter a reply');
             return;
         }
 
         try {
-            const response = await fetch(`/api/posts/${this.postId}/comments`, {
+            const response = await fetch(`/api/posts/${postId}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     content,
-                    parent_id: parentId
+                    parent_id: commentId
                 })
             });
 
@@ -399,11 +413,16 @@ export default class ViewPost {
             window.location.reload();
         } catch (error) {
             console.error('Error submitting reply:', error);
-            alert('Failed to submit reply');
+            this.showToast('Failed to submit reply');
         }
     }
 
     async handleCommentVote(commentId, type) {
+        if (!this.user) {
+            this.showToast('Please log in to vote');
+            return;
+        }
+
         try {
             const response = await fetch('/api/comments/vote', {
                 method: 'POST',
@@ -425,7 +444,7 @@ export default class ViewPost {
             this.toggleCommentVoteButtonStates(commentId, type);
         } catch (error) {
             console.error('Error voting on comment:', error);
-            alert('Failed to vote on comment');
+            this.showToast('Failed to vote on comment');
         }
     }
 
@@ -447,7 +466,12 @@ export default class ViewPost {
         }
     }
 
-    async handlePostVote(type) {
+    async handlePostVote(postId, type) {
+        if (!this.user) {
+            this.showToast('Please log in to vote');
+            return;
+        }
+
         try {
             const response = await fetch('/api/posts/vote', {
                 method: 'POST',
@@ -455,7 +479,7 @@ export default class ViewPost {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    post_id: this.postId,
+                    post_id: postId,
                     vote_type: type
                 })
             });
@@ -469,7 +493,7 @@ export default class ViewPost {
             this.togglePostVoteButtonStates(type);
         } catch (error) {
             console.error('Error voting on post:', error);
-            alert('Failed to vote on post');
+            this.showToast('Failed to vote on post');
         }
     }
 
@@ -560,6 +584,18 @@ export default class ViewPost {
                 console.error('Error deleting comment:', error);
                 alert('Failed to delete comment');
             }
+        }
+    }
+
+    showToast(message) {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        if (toast && toastMessage) {
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
         }
     }
 }
