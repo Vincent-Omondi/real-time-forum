@@ -65,7 +65,7 @@ func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 // LoginHandler handles user authentication
 func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("LoginHandler called") 
+		fmt.Println("LoginHandler called")
 		var req models.LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode login request: %v", err)
@@ -88,7 +88,7 @@ func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
- fmt.Println("sessionToken created")
+		fmt.Println("sessionToken created")
 		// Set session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session_token",
@@ -195,11 +195,19 @@ func isLoggedIn(db *sql.DB, r *http.Request) (bool, int) {
 func CheckLoginHandler(w http.ResponseWriter, r *http.Request) {
 	loggedIn, userID := isLoggedIn(database.GloabalDB, r)
 
-	logger.Debug("Verifying logged-in status for user ID: %d", userID)
-	logger.Info("User %d loggin status: %v", userID, loggedIn)
+	var csrfToken string
+	if loggedIn {
+		sessionToken, err := controllers.GetSessionToken(r)
+		if err == nil {
+			csrfToken, _ = controllers.GenerateCSRFToken(database.GloabalDB, sessionToken)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]bool{
-		"loggedIn": loggedIn,
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"loggedIn":  loggedIn,
+		"csrfToken": csrfToken,
+		"userID":    userID,
 	})
 }
