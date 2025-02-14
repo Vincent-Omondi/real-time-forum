@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 // RegisterHandler handles new user registration
 func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Register Hnadler called")
 		var req models.RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode registration request: %v", err)
@@ -63,10 +65,11 @@ func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 // LoginHandler handles user authentication
 func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("LoginHandler called") 
 		var req models.LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode login request: %v", err)
-			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
@@ -82,10 +85,10 @@ func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 		sessionToken, err := createSession(user.ID)
 		if err != nil {
 			logger.Error("Failed to create session: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
+ fmt.Println("sessionToken created")
 		// Set session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session_token",
