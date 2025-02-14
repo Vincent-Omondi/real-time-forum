@@ -183,9 +183,9 @@ func Init(env string) (*sql.DB, error) {
 // Function to Add Missing Columns for Existing Users Table
 func addMissingColumns(DB *sql.DB) {
 	columns := map[string]string{
-		"nickname":  "TEXT UNIQUE NOT NULL",
-		"age":       "INTEGER NOT NULL CHECK(age >= 13)",
-		"gender":    "TEXT NOT NULL CHECK(gender IN ('male', 'female', 'other'))",
+		"nickname":   "TEXT UNIQUE NOT NULL",
+		"age":        "INTEGER NOT NULL CHECK(age >= 13)",
+		"gender":     "TEXT NOT NULL CHECK(gender IN ('male', 'female', 'other'))",
 		"first_name": "TEXT NOT NULL",
 		"last_name":  "TEXT NOT NULL",
 		"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
