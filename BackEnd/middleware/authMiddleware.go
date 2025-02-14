@@ -17,6 +17,7 @@ var PublicPaths = map[string]bool{
     "/api/login":    true,
     "/api/register": true,
     "/api/check-auth": true,
+    "/api/logout":   true,
     "/static/":      true,
     "/assets/":      true,
     "/favicon.ico":  true,
