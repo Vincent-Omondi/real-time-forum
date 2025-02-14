@@ -12,13 +12,14 @@ import (
 
 // PublicPaths contains routes that don't require authentication
 var PublicPaths = map[string]bool{
-	"/login":        true,
-	"/register":     true,
-	"/api/login":    true,
-	"/api/register": true,
-	"/static/":      true,
-	"/assets/":      true,
-	"/favicon.ico":  true,
+    "/login":        true,
+    "/register":     true,
+    "/api/login":    true,
+    "/api/register": true,
+    "/api/check-auth": true,
+    "/static/":      true,
+    "/assets/":      true,
+    "/favicon.ico":  true,
 }
 
 // AuthMiddleware checks if the user is authenticated
@@ -34,10 +35,14 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// Get session cookie
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
-			logger.Warning("No session cookie: %v", err)
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
+		
 
 		// Check if user is authenticated by validating the session token
 		userID, err := validateSessionToken(cookie.Value)
