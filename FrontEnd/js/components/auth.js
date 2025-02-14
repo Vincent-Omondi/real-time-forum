@@ -7,9 +7,27 @@ export class Auth {
 
     async checkAuthStatus() {
         try {
-            const response = await fetch('/api/check-auth', { credentials: 'include' });
+            const response = await fetch('/api/check-auth', { 
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
             const data = await response.json();
             this.isAuthenticated = data.loggedIn;
+
+            if (this.isAuthenticated && data.csrfToken) {
+                // Update CSRF token
+                localStorage.setItem('csrfToken', data.csrfToken);
+                let metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (!metaTag) {
+                    metaTag = document.createElement('meta');
+                    metaTag.setAttribute('name', 'csrf-token');
+                    document.head.appendChild(metaTag);
+                }
+                metaTag.setAttribute('content', data.csrfToken);
+            }
 
             if (!this.isAuthenticated && !this.isPublicPath()) {
                 window.location.href = '/login';
@@ -112,7 +130,6 @@ export class Auth {
             const data = Object.fromEntries(formData.entries());
 
             try {
-                console.log("Sending login request");
                 const response = await fetch('/api/login', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -121,8 +138,21 @@ export class Auth {
                 });
 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Login failed');
+                    throw new Error('Login failed');
+                }
+
+                const result = await response.json();
+                
+                // Store CSRF token in localStorage and meta tag
+                if (result.csrfToken) {
+                    localStorage.setItem('csrfToken', result.csrfToken);
+                    let metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (!metaTag) {
+                        metaTag = document.createElement('meta');
+                        metaTag.setAttribute('name', 'csrf-token');
+                        document.head.appendChild(metaTag);
+                    }
+                    metaTag.setAttribute('content', result.csrfToken);
                 }
 
                 this.isAuthenticated = true;
@@ -165,19 +195,36 @@ export class Auth {
 
     async logout() {
         try {
-            const response = await fetch('/api/logout', {  
+            // Get CSRF token from localStorage or meta tag
+            const csrfToken = localStorage.getItem('csrfToken') || 
+                             document.querySelector('meta[name="csrf-token"]')?.content;
+            
+            if (!csrfToken) {
+                throw new Error('No CSRF token available');
+            }
+
+            const response = await fetch('/api/logout', {
                 method: 'POST',
-                credentials: 'include'
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                }
             });
 
             if (!response.ok) {
-                throw new Error('Logout failed');
+                const error = await response.json();
+                throw new Error(error.message || 'Logout failed');
             }
 
+            // Clear CSRF token and authentication state
+            localStorage.removeItem('csrfToken');
+            document.querySelector('meta[name="csrf-token"]')?.remove();
             this.isAuthenticated = false;
             window.location.href = '/login';
         } catch (error) {
             console.error('Logout error:', error);
+            alert('Failed to logout. Please try again.');
         }
     }
 }
