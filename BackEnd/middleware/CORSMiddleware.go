@@ -7,6 +7,7 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		// Handle OPTIONS requests (preflight CORS requests)
 		if r.Method == http.MethodOptions {
 			// w.Header().Set("Access-Control-Allow-Origin", "http://your-frontend-domain.com")
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8080")
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
