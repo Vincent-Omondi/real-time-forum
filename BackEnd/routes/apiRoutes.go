@@ -90,9 +90,9 @@ func APIRoutes(db *sql.DB) {
 		http.HandlerFunc(handlers.CheckLoginHandler),
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
-		pageLimiter.RateLimit,
-		middleware.ErrorHandler(handlers.ServeErrorPage),
-		middleware.ValidatePathAndMethod("/api/checkLoginStatus", http.MethodGet),
+		// pageLimiter.RateLimit,
+		// middleware.ErrorHandler(handlers.ServeErrorPage),
+		// middleware.ValidatePathAndMethod("/api/checkLoginStatus", http.MethodGet),
 	))
 
 	http.Handle("/api/logout", middleware.ApplyMiddleware(

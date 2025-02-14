@@ -16,6 +16,8 @@ func init() {
 }
 
 func ServeStaticFolder() {
+
+	
 	// FileServer wrapper to set correct content types
 	fileServer := func(root http.FileSystem) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
