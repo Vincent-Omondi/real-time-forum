@@ -8,47 +8,79 @@ import { initTheme } from './utils/theme.js';
 
 // Router configuration
 const routes = {
-    '/': 'home',
-    '/login': 'login',
-    '/register': 'register',
-    '/posts': 'posts',
-    '/viewPost': 'viewPost',
-    '/messages': 'messages',
-    '/profile': 'profile'
+    '/': requireAuth('home'),
+    '/login': () => initAuth('login'),
+    '/register': () => initAuth('register'),
+    '/posts': requireAuth('posts'),
+    '/viewPost': requireAuth('viewPost'),
+    '/messages': requireAuth('messages'),
+    '/profile': requireAuth('profile'),
+    '/logout': logoutUser
 };
+
+// Ensure authentication before allowing access to routes
+function requireAuth(component) {
+    return async () => {
+        const isLoggedIn = await checkLoginStatus();
+        if (!isLoggedIn) {
+            window.location.href = '/login';
+            return;
+        }
+        return components[component]();
+    };
+}
+
+// Authentication functions
+async function checkLoginStatus() {
+    try {
+        const response = await fetch('/api/check-auth', { credentials: 'include' });
+        const data = await response.json();
+        updateUserUI(data.loggedIn);
+        return data.loggedIn;
+    } catch (error) {
+        console.error("Error checking login status:", error);
+        return false;
+    }
+}
+
+function updateUserUI(isLoggedIn) {
+    const userSection = document.getElementById("userSection");
+    if (isLoggedIn) {
+        userSection.innerHTML = `
+            <div class="user-profile">
+                <button id="logoutBtn">Logout</button>
+            </div>
+        `;
+        document.getElementById("logoutBtn").addEventListener("click", logoutUser);
+    } else {
+        userSection.innerHTML = `
+            <a href="/login" class="button">Login</a>
+            <a href="/register" class="button">Register</a>
+        `;
+    }
+}
+
+async function logoutUser() {
+    try {
+        await fetch("/logout", { method: "POST", credentials: "include" });
+        window.location.href = "/login";
+    } catch (error) {
+        console.error("Logout failed:", error);
+    }
+}
 
 // Component render functions
 const components = {
     home: async () => {
         const container = document.getElementById('app-container');
-        container.innerHTML = `
-            <div class="posts-container"></div>
-        `;
+        container.innerHTML = `<div class="posts-container"></div>`;
         await initPosts();
-    },
-    login: () => {
-        const container = document.getElementById('app-container');
-        container.innerHTML = `
-            <div class="auth-container">
-                <h2>Login</h2>
-                <form id="login-form">
-                    <input type="text" name="username" placeholder="Username" required>
-                    <input type="password" name="password" placeholder="Password" required>
-                    <button type="submit">Login</button>
-                </form>
-                <div class="oauth-buttons">
-                    <button id="google-login">Login with Google</button>
-                    <button id="github-login">Login with GitHub</button>
-                </div>
-            </div>
-        `;
-        initAuth();
     },
     viewPost: async () => {
         const container = document.getElementById('app-container');
         const urlParams = new URLSearchParams(window.location.search);
         const postId = urlParams.get('id');
-        
+
         if (!postId) {
             container.innerHTML = '<div class="error">Post not found</div>';
             return;
@@ -58,8 +90,7 @@ const components = {
         const viewPostComponent = new ViewPost();
         container.innerHTML = await viewPostComponent.getHtml();
         await viewPostComponent.afterRender();
-    },
-    // Add other component render functions here
+    }
 };
 
 // Router implementation
@@ -70,13 +101,8 @@ class Router {
     }
 
     init() {
-        // Handle initial load
         this.handleRoute();
-
-        // Handle browser navigation
         window.addEventListener('popstate', () => this.handleRoute());
-
-        // Handle link clicks
         document.addEventListener('click', (e) => {
             if (e.target.matches('[data-link]')) {
                 e.preventDefault();
@@ -89,7 +115,6 @@ class Router {
         const path = window.location.pathname;
         let componentName = this.routes[path];
 
-        // Handle dynamic routes (e.g., /post/123)
         if (!componentName) {
             for (const [route, name] of Object.entries(this.routes)) {
                 if (path.startsWith(route)) {
@@ -99,10 +124,9 @@ class Router {
             }
         }
 
-        if (componentName && components[componentName]) {
-            await components[componentName]();
+        if (componentName) {
+            await componentName();
         } else {
-            // Handle 404
             document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
         }
     }
@@ -118,7 +142,6 @@ function initWebSocket() {
     const ws = new WebSocket('ws://' + window.location.host + '/ws');
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        // Handle different types of WebSocket messages
         switch (data.type) {
             case 'message':
                 initNotifications().newMessage(data);
@@ -132,13 +155,12 @@ function initWebSocket() {
 }
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const router = new Router(routes);
     const ws = initWebSocket();
     
-    // Initialize theme manager
+    await checkLoginStatus();
     initTheme();
     
-    // Make WebSocket instance available globally
     window.forumWS = ws;
-}); 
+});
