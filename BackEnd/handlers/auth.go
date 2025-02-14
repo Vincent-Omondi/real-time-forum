@@ -2,146 +2,174 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"time"
 
-	"github.com/Vincent-Omondi/real-time-forum/BackEnd/auth"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/models"
 )
 
-// RegisterHandler registers a new user
+// RegisterHandler handles new user registration
 func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode registration request: %v", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid input",
-			})
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
 			return
 		}
 
-		logger.Debug("Registration attempt for email: %s, username: %s", req.Email, req.Username)
-
-		// Validate email
-		if !ac.IsValidEmail(req.Email) {
-			logger.Warning("Invalid email format attempted: %s", req.Email)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid email format",
-			})
-			return
-		}
-
-		// Validate username
-		if !ac.IsValidUsername(req.Username) {
-			logger.Warning("Invalid username format attempted: %s", req.Username)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Username must be between 3 and 20 characters and contain only letters, numbers, and underscores",
-			})
-			return
-		}
-
-		// Validate password
-		if !ac.IsValidPassword(req.Password) {
-			logger.Warning("Invalid password format for user: %s", req.Username)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters",
-			})
-			return
-		}
-
-		// Sanitize inputs
-		sanitizedEmail := ac.SanitizeInput(req.Email)
-		sanitizedUsername := ac.SanitizeInput(req.Username)
-
-		userID, err := ac.RegisterUser(sanitizedEmail, sanitizedUsername, req.Password)
+		// Create user from request
+		user, err := ac.Register(&req)
 		if err != nil {
-			logger.Error("Registration failed for user %s: %v", sanitizedUsername, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			logger.Warning("Registration failed: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		auth.CreateSession(ac.DB, w, int(userID))
-		logger.Info("Successfully registered user: %s (ID: %d)", sanitizedUsername, userID)
+		// Create session token
+		sessionToken, err := createSession(user.ID)
+		if err != nil {
+			logger.Error("Failed to create session: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
-		w.WriteHeader(302)
+		// Set session cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    sessionToken,
+			Path:     "/",
+			Expires:  time.Now().Add(24 * time.Hour),
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		logger.Info("Successfully registered user: %s", req.Nickname)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"redirect": "/",
+			"message": "Registration successful",
 		})
 	}
 }
 
-// LoginHandler authenticates and creates a session
+// LoginHandler handles user authentication
 func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}
-
+		var req models.LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode login request: %v", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid input",
-			})
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
 			return
 		}
 
-		// Check for missing fields
-		if req.Username == "" || req.Password == "" {
-			logger.Warning("Login attempt with missing fields")
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid input",
-			})
-			return
-		}
-
-		logger.Debug("Login attempt for username: %s", req.Username)
-
-		user, err := ac.AuthenticateUser(req.Username, req.Password)
+		// Authenticate user
+		user, err := ac.Login(&req)
 		if err != nil {
-			logger.Warning("Failed login attempt for user %s: %v", req.Username, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid username or password",
-			})
+			logger.Warning("Login failed: %v", err)
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
 
-		auth.CreateSession(ac.DB, w, user.ID)
-		logger.Info("Successful login for user: %s (ID: %d)", user.Username, user.ID)
+		// Create session token
+		sessionToken, err := createSession(user.ID)
+		if err != nil {
+			logger.Error("Failed to create session: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
-		// Set headers first
+		// Set session cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    sessionToken,
+			Path:     "/",
+			Expires:  time.Now().Add(24 * time.Hour),
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		logger.Info("Successfully logged in user: %s", user.Nickname)
 		w.Header().Set("Content-Type", "application/json")
-		// Then set status code
-		w.WriteHeader(http.StatusFound) // 302 Found
-		// Finally write the response body
 		json.NewEncoder(w).Encode(map[string]string{
-			"redirect": "/",
+			"message": "Login successful",
 		})
 	}
+}
+
+// LogoutHandler handles user logout
+func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		logger.Debug("Logout attempted with no session")
+		http.Error(w, "Not logged in", http.StatusUnauthorized)
+		return
+	}
+
+	// Delete session from database
+	if err := deleteSession(cookie.Value); err != nil {
+		logger.Error("Failed to delete session: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Clear the cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Now().Add(-1 * time.Hour),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	logger.Info("User logged out successfully")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Logged out successfully",
+	})
+}
+
+// Helper functions for session management
+func createSession(userID int) (string, error) {
+	sessionToken := generateSessionToken() // You'll need to implement this
+	expiresAt := time.Now().Add(24 * time.Hour)
+
+	query := `INSERT INTO sessions (session_token, user_id, expires_at) 
+             VALUES (?, ?, ?)`
+
+	_, err := database.GloabalDB.Exec(query, sessionToken, userID, expiresAt)
+	if err != nil {
+		return "", err
+	}
+
+	return sessionToken, nil
+}
+
+func deleteSession(token string) error {
+	query := `DELETE FROM sessions WHERE session_token = ?`
+	_, err := database.GloabalDB.Exec(query, token)
+	return err
+}
+
+func generateSessionToken() string {
+	// Generate a random string for session token
+	// You can use crypto/rand to generate a secure random token
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(b)
 }
 
 func isLoggedIn(db *sql.DB, r *http.Request) (bool, int) {
@@ -170,42 +198,5 @@ func CheckLoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]bool{
 		"loggedIn": loggedIn,
-	})
-}
-
-func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	// Get the session cookie
-	cookie, err := r.Cookie("session_token")
-	if err != nil {
-		logger.Debug("Logout attempted with no active session")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	// Delete the session from the database
-	sessionToken := cookie.Value
-	err = controllers.DeleteSession(database.GloabalDB, sessionToken)
-	if err != nil {
-		logger.Error("Failed to delete session: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	// Clear the session cookie on the client
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1, // Expire the cookie immediately
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	logger.Info("User successfully logged out")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "User is logged out succesfully",
 	})
 }
