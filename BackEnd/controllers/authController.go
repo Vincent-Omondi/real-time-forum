@@ -21,53 +21,107 @@ func NewAuthController(db *sql.DB) *AuthController {
 	return &AuthController{DB: db}
 }
 
-func (ac *AuthController) RegisterUser(email, username, password string) (int64, error) {
-	
-	if email == "" || username == "" || password == "" {
-		logger.Warning("Registration failed - missing required fields")
-		return 0, errors.New("missing required fields")
-	}
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		logger.Error("Failed to hash password: %v", err)
-		return 0, errors.New("internal server error")
+func (ac *AuthController) Register(req *models.RegisterRequest) (*models.User, error) {
+	// Create user from request
+	user := &models.User{
+		Nickname:  req.Nickname,
+		Age:       req.Age,
+		Gender:    req.Gender,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Email:     req.Email,
+		Password:  req.Password,
 	}
 
-	result, err := ac.DB.Exec("INSERT INTO users (email, username, password) VALUES (?, ?, ?)", email, username, hashedPassword)
+	// Validate user input
+	if err := user.ValidateRegistration(); err != nil {
+		logger.Warning("Registration validation failed: %v", err)
+		return nil, err
+	}
+
+	// Hash password before storing
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logger.Warning("Registration failed - duplicate email or username: %v", err)
-		return 0, errors.New("email or username already taken")
+		logger.Error("Failed to hash password: %v", err)
+		return nil, errors.New("internal server error")
+	}
+	user.Password = string(hashedPassword)
+
+	// Store user in database
+	query := `INSERT INTO users (nickname, age, gender, first_name, last_name, email, password, created_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+
+	result, err := ac.DB.Exec(query,
+		user.Nickname,
+		user.Age,
+		user.Gender,
+		user.FirstName,
+		user.LastName,
+		user.Email,
+		user.Password,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			logger.Warning("Registration failed - duplicate email or nickname: %v", err)
+			return nil, errors.New("email or nickname already taken")
+		}
+		logger.Error("Database error during registration: %v", err)
+		return nil, errors.New("internal server error")
 	}
 
 	// Get the auto-generated user ID
 	userID, err := result.LastInsertId()
 	if err != nil {
 		logger.Error("Failed to retrieve user ID after registration: %v", err)
-		return 0, errors.New("failed to complete registration")
+		return nil, errors.New("failed to complete registration")
 	}
+	user.ID = int(userID)
 
-	// Return the user ID
-	return userID, nil
-}
-
-func (ac *AuthController) AuthenticateUser(username, password string) (*models.User, error) {
-	user := &models.User{}
-	err := ac.DB.QueryRow("SELECT id, email, username, password FROM users WHERE username = ?", username).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password)
-	if err != nil {
-		logger.Warning("Authentication failed - invalid username: %s", username)
-		return nil, errors.New("invalid username")
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		logger.Warning("Authentication failed - invalid password for user: %s", username)
-		return nil, errors.New("invalid password")
-	}
-
+	// Clear password before returning
+	user.Password = ""
 	return user, nil
 }
 
-// isValidEmail checks if the email is in a valid format
+func (ac *AuthController) Login(req *models.LoginRequest) (*models.User, error) {
+	user := &models.User{}
+
+	// Check if identifier is email or nickname
+	query := `SELECT id, nickname, age, gender, first_name, last_name, email, password, created_at 
+             FROM users WHERE email = ? OR nickname = ?`
+
+	err := ac.DB.QueryRow(query, req.Identifier, req.Identifier).Scan(
+		&user.ID,
+		&user.Nickname,
+		&user.Age,
+		&user.Gender,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Warning("Login failed - invalid identifier: %s", req.Identifier)
+			return nil, errors.New("invalid credentials")
+		}
+		logger.Error("Database error during login: %v", err)
+		return nil, errors.New("internal server error")
+	}
+
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		logger.Warning("Login failed - invalid password for user: %s", req.Identifier)
+		return nil, errors.New("invalid credentials")
+	}
+
+	// Clear password before returning
+	user.Password = ""
+	return user, nil
+}
+
+// Helper functions for input validation
 func (ac *AuthController) IsValidEmail(email string) bool {
 	_, err := mail.ParseAddress(email)
 	if err != nil {
@@ -77,22 +131,20 @@ func (ac *AuthController) IsValidEmail(email string) bool {
 	return true
 }
 
-// isValidUsername checks if the username meets the requirements
-func (ac *AuthController) IsValidUsername(username string) bool {
-	if len(username) < 3 || len(username) > 20 {
-		logger.Debug("Invalid username length: %s", username)
+func (ac *AuthController) IsValidNickname(nickname string) bool {
+	if len(nickname) < 3 || len(nickname) > 30 {
+		logger.Debug("Invalid nickname length: %s", nickname)
 		return false
 	}
 	// Only allow letters, numbers, and underscores
 	regex := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
-	if !regex.MatchString(username) {
-		logger.Debug("Username contains invalid characters: %s", username)
+	if !regex.MatchString(nickname) {
+		logger.Debug("Nickname contains invalid characters: %s", nickname)
 		return false
 	}
 	return true
 }
 
-// isValidPassword checks if the password meets the requirements
 func (ac *AuthController) IsValidPassword(password string) bool {
 	if len(password) < 8 {
 		return false
@@ -112,7 +164,6 @@ func (ac *AuthController) IsValidPassword(password string) bool {
 
 // sanitizeInput removes potentially dangerous characters to prevent XSS
 func (ac *AuthController) SanitizeInput(input string) string {
-	// Replace HTML tags and special characters
 	input = strings.ReplaceAll(input, "<", "&lt;")
 	input = strings.ReplaceAll(input, ">", "&gt;")
 	input = strings.ReplaceAll(input, "&", "&amp;")
