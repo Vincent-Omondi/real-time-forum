@@ -1,102 +1,221 @@
 // Auth component for handling authentication
-export function initAuth() {
-    const loginForm = document.getElementById('login-form');
-    const googleBtn = document.getElementById('google-login');
-    const githubBtn = document.getElementById('github-login');
+export class Auth {
+    constructor() {
+        this.isAuthenticated = false;
+        this.checkAuthStatus();
+    }
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
+    async checkAuthStatus() {
+        try {
+            const response = await fetch('/api/check-login');
+            const data = await response.json();
+            this.isAuthenticated = data.loggedIn;
+            if (!this.isAuthenticated && !this.isPublicPath()) {
+                window.location.href = '/login';
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+        }
+    }
+
+    isPublicPath() {
+        const publicPaths = ['/login', '/register'];
+        return publicPaths.includes(window.location.pathname);
+    }
+
+    renderLoginForm(container) {
+        container.innerHTML = `
+            <div class="auth-container">
+                <h2>Login</h2>
+                <form id="loginForm" class="auth-form">
+                    <div class="form-group">
+                        <input type="text" 
+                               name="identifier" 
+                               placeholder="Email or Nickname" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" 
+                               name="password" 
+                               placeholder="Password" 
+                               required>
+                    </div>
+                    <button type="submit">Login</button>
+                    <p class="auth-switch">
+                        Don't have an account? <a href="/register">Register</a>
+                    </p>
+                </form>
+            </div>
+        `;
+
+        this.attachLoginHandler();
+    }
+
+    renderRegisterForm(container) {
+        container.innerHTML = `
+            <div class="auth-container">
+                <h2>Register</h2>
+                <form id="registerForm" class="auth-form">
+                    <div class="form-group">
+                        <input type="text" 
+                               name="nickname" 
+                               placeholder="Nickname" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <input type="number" 
+                               name="age" 
+                               placeholder="Age" 
+                               min="13" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <select name="gender" required>
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" 
+                               name="firstName" 
+                               placeholder="First Name" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" 
+                               name="lastName" 
+                               placeholder="Last Name" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <input type="email" 
+                               name="email" 
+                               placeholder="Email" 
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" 
+                               name="password" 
+                               placeholder="Password" 
+                               required>
+                        <small class="password-hint">
+                            Password must be at least 8 characters long
+                        </small>
+                    </div>
+                    <button type="submit">Register</button>
+                    <p class="auth-switch">
+                        Already have an account? <a href="/login">Login</a>
+                    </p>
+                </form>
+            </div>
+        `;
+
+        this.attachRegisterHandler();
+    }
+
+    attachLoginHandler() {
+        const form = document.getElementById('loginForm');
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(loginForm);
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
                 });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    window.location.href = '/';
-                } else {
+
+                if (!response.ok) {
                     const error = await response.json();
-                    alert(error.message);
+                    throw new Error(error.message || 'Login failed');
                 }
+
+                window.location.href = '/';
             } catch (error) {
-                console.error('Login error:', error);
-                alert('An error occurred during login');
+                this.showError(form, error.message);
             }
         });
     }
 
-    // OAuth handlers
-    if (googleBtn) {
-        googleBtn.addEventListener('click', () => {
-            window.location.href = '/auth/google/login';
-        });
-    }
-
-    if (githubBtn) {
-        githubBtn.addEventListener('click', () => {
-            window.location.href = '/auth/github/login';
-        });
-    }
-}
-
-export function checkAuth() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
-}
-
-export function logout() {
-    localStorage.removeItem('user');
-    window.location.href = '/login';
-}
-
-// Register component
-export function initRegister() {
-    const container = document.getElementById('app-container');
-    container.innerHTML = `
-        <div class="auth-container">
-            <h2>Register</h2>
-            <form id="register-form">
-                <input type="text" name="username" placeholder="Username" required>
-                <input type="email" name="email" placeholder="Email" required>
-                <input type="password" name="password" placeholder="Password" required>
-                <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-                <button type="submit">Register</button>
-            </form>
-        </div>
-    `;
-
-    const registerForm = document.getElementById('register-form');
-    if (registerForm) {
-        registerForm.addEventListener('submit', async (e) => {
+    attachRegisterHandler() {
+        const form = document.getElementById('registerForm');
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(registerForm);
-            
-            if (formData.get('password') !== formData.get('confirm_password')) {
-                alert('Passwords do not match');
-                return;
-            }
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
 
             try {
                 const response = await fetch('/api/register', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
                 });
-                
-                if (response.ok) {
-                    alert('Registration successful! Please login.');
-                    window.location.href = '/login';
-                } else {
+
+                if (!response.ok) {
                     const error = await response.json();
-                    alert(error.message);
+                    throw new Error(error.message || 'Registration failed');
                 }
+
+                window.location.href = '/login';
             } catch (error) {
-                console.error('Registration error:', error);
-                alert('An error occurred during registration');
+                this.showError(form, error.message);
             }
         });
     }
+
+    async logout() {
+        try {
+            const response = await fetch('/api/logout', {
+                method: 'POST',
+            });
+
+            if (!response.ok) {
+                throw new Error('Logout failed');
+            }
+
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+
+    showError(form, message) {
+        let errorDiv = form.querySelector('.auth-error');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'auth-error';
+            form.insertBefore(errorDiv, form.firstChild);
+        }
+        errorDiv.textContent = message;
+    }
+}
+
+// Maintain backward compatibility with existing code
+export function checkAuth() {
+    const auth = new Auth();
+    return auth.checkAuthStatus();
+}
+
+export function initAuth() {
+    const auth = new Auth();
+    const container = document.getElementById('app-container');
+    
+    if (window.location.pathname === '/login') {
+        auth.renderLoginForm(container);
+    } else if (window.location.pathname === '/register') {
+        auth.renderRegisterForm(container);
+    }
+}
+
+export function logout() {
+    const auth = new Auth();
+    return auth.logout();
 } 
