@@ -1,13 +1,13 @@
 /* Import base styles */
-@import 'base/reset.css';
-@import 'base/variables.css';
+/* @import 'base/reset.css'; */
+/* @import 'base/variables.css'; */
 
 /* Import component styles */
 @import 'components/auth.css';
-@import 'components/posts.css';
+/* @import 'components/posts.css';
 @import 'components/comments.css';
 @import 'components/messages.css';
-@import 'components/notifications.css';
+@import 'components/notifications.css'; */
 
 /* Global styles */
 body {
