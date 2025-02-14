@@ -7,11 +7,14 @@ export class Auth {
 
     async checkAuthStatus() {
         try {
-            const response = await fetch('/api/check-login');
+            const response = await fetch('/api/check-auth', { credentials: 'include' });
             const data = await response.json();
             this.isAuthenticated = data.loggedIn;
+
             if (!this.isAuthenticated && !this.isPublicPath()) {
                 window.location.href = '/login';
+            } else if (this.isAuthenticated) {
+                this.updateUserSection();
             }
         } catch (error) {
             console.error('Auth check failed:', error);
@@ -23,51 +26,50 @@ export class Auth {
         return publicPaths.includes(window.location.pathname);
     }
 
+    updateUserSection() {
+        const userSection = document.getElementById('userSection');
+        if (userSection) {
+            userSection.innerHTML = `
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            `;
+            document.getElementById("logoutBtn").addEventListener("click", () => this.logout());
+        }
+    }
+
     renderLoginForm(container) {
-        container.innerHTML = `
+        const loginHTML = `
             <div class="auth-container">
                 <h2>Login</h2>
                 <form id="loginForm" class="auth-form">
                     <div class="form-group">
-                        <input type="text" 
-                               name="identifier" 
-                               placeholder="Email or Nickname" 
-                               required>
+                        <input type="text" name="identifier" placeholder="Email or Nickname" required>
                     </div>
                     <div class="form-group">
-                        <input type="password" 
-                               name="password" 
-                               placeholder="Password" 
-                               required>
+                        <input type="password" name="password" placeholder="Password" required>
                     </div>
                     <button type="submit">Login</button>
                     <p class="auth-switch">
                         Don't have an account? <a href="/register">Register</a>
                     </p>
                 </form>
+                <div id="loginError" class="auth-error"></div>
             </div>
         `;
 
+        container.innerHTML = loginHTML;
         this.attachLoginHandler();
     }
 
     renderRegisterForm(container) {
-        container.innerHTML = `
+        const registerHTML = `
             <div class="auth-container">
                 <h2>Register</h2>
                 <form id="registerForm" class="auth-form">
                     <div class="form-group">
-                        <input type="text" 
-                               name="nickname" 
-                               placeholder="Nickname" 
-                               required>
+                        <input type="text" name="nickname" placeholder="Nickname" required>
                     </div>
                     <div class="form-group">
-                        <input type="number" 
-                               name="age" 
-                               placeholder="Age" 
-                               min="13" 
-                               required>
+                        <input type="number" name="age" placeholder="Age" min="13" required>
                     </div>
                     <div class="form-group">
                         <select name="gender" required>
@@ -78,40 +80,27 @@ export class Auth {
                         </select>
                     </div>
                     <div class="form-group">
-                        <input type="text" 
-                               name="firstName" 
-                               placeholder="First Name" 
-                               required>
+                        <input type="text" name="firstName" placeholder="First Name" required>
                     </div>
                     <div class="form-group">
-                        <input type="text" 
-                               name="lastName" 
-                               placeholder="Last Name" 
-                               required>
+                        <input type="text" name="lastName" placeholder="Last Name" required>
                     </div>
                     <div class="form-group">
-                        <input type="email" 
-                               name="email" 
-                               placeholder="Email" 
-                               required>
+                        <input type="email" name="email" placeholder="Email" required>
                     </div>
                     <div class="form-group">
-                        <input type="password" 
-                               name="password" 
-                               placeholder="Password" 
-                               required>
-                        <small class="password-hint">
-                            Password must be at least 8 characters long
-                        </small>
+                        <input type="password" name="password" placeholder="Password" minlength="8" required>
                     </div>
                     <button type="submit">Register</button>
                     <p class="auth-switch">
                         Already have an account? <a href="/login">Login</a>
                     </p>
                 </form>
+                <div id="registerError" class="auth-error"></div>
             </div>
         `;
 
+        container.innerHTML = registerHTML;
         this.attachRegisterHandler();
     }
 
@@ -120,15 +109,14 @@ export class Auth {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData);
+            const data = Object.fromEntries(formData.entries());
 
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('/api/login', {  // ✅ Ensure using `/api/login`
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
+                    credentials: 'include'
                 });
 
                 if (!response.ok) {
@@ -136,9 +124,10 @@ export class Auth {
                     throw new Error(error.message || 'Login failed');
                 }
 
+                this.isAuthenticated = true;
                 window.location.href = '/';
             } catch (error) {
-                this.showError(form, error.message);
+                document.getElementById('loginError').textContent = error.message;
             }
         });
     }
@@ -148,14 +137,12 @@ export class Auth {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData);
+            const data = Object.fromEntries(formData.entries());
 
             try {
-                const response = await fetch('/api/register', {
+                const response = await fetch('/api/register', {  // ✅ Ensure using `/api/register`
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
 
@@ -166,39 +153,31 @@ export class Auth {
 
                 window.location.href = '/login';
             } catch (error) {
-                this.showError(form, error.message);
+                document.getElementById('registerError').textContent = error.message;
             }
         });
     }
 
     async logout() {
         try {
-            const response = await fetch('/api/logout', {
+            const response = await fetch('/api/logout', {  // ✅ Ensure using `/api/logout`
                 method: 'POST',
+                credentials: 'include'
             });
 
             if (!response.ok) {
                 throw new Error('Logout failed');
             }
 
+            this.isAuthenticated = false;
             window.location.href = '/login';
         } catch (error) {
             console.error('Logout error:', error);
         }
     }
-
-    showError(form, message) {
-        let errorDiv = form.querySelector('.auth-error');
-        if (!errorDiv) {
-            errorDiv = document.createElement('div');
-            errorDiv.className = 'auth-error';
-            form.insertBefore(errorDiv, form.firstChild);
-        }
-        errorDiv.textContent = message;
-    }
 }
 
-// Maintain backward compatibility with existing code
+// Utility Functions
 export function checkAuth() {
     const auth = new Auth();
     return auth.checkAuthStatus();
@@ -218,4 +197,4 @@ export function initAuth() {
 export function logout() {
     const auth = new Auth();
     return auth.logout();
-} 
+}
