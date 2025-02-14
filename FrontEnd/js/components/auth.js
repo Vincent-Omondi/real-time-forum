@@ -112,7 +112,8 @@ export class Auth {
             const data = Object.fromEntries(formData.entries());
 
             try {
-                const response = await fetch('/api/login', {  // ✅ Ensure using `/api/login`
+                console.log("Sending login request");
+                const response = await fetch('/api/login', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
@@ -138,29 +139,33 @@ export class Auth {
             e.preventDefault();
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
-
+    
+            // Convert age from string to integer
+            data.age = parseInt(data.age, 10);
+    
             try {
-                const response = await fetch('/api/register', {  // ✅ Ensure using `/api/register`
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
-
+    
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Registration failed');
                 }
-
+    
                 window.location.href = '/login';
             } catch (error) {
                 document.getElementById('registerError').textContent = error.message;
             }
         });
     }
+    
 
     async logout() {
         try {
-            const response = await fetch('/api/logout', {  // ✅ Ensure using `/api/logout`
+            const response = await fetch('/api/logout', {  
                 method: 'POST',
                 credentials: 'include'
             });

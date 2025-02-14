@@ -1,8 +1,7 @@
 // Import components
 import { initAuth } from './components/auth.js';
 import { initPosts } from './components/posts.js';
-import { initComments } from './components/comments.js';
-import { initMessages } from './components/messages.js';
+
 import { initNotifications } from './components/notifications.js';
 import { initTheme } from './utils/theme.js';
 
@@ -33,15 +32,29 @@ function requireAuth(component) {
 // Authentication functions
 async function checkLoginStatus() {
     try {
-        const response = await fetch('/api/check-auth', { credentials: 'include' });
+        const response = await fetch(`${window.location.origin}/api/checkLoginStatus`, {
+            method: "GET",
+            credentials: "include",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`Error: Received status ${response.status}`);
+            return false;
+        }
+
         const data = await response.json();
         updateUserUI(data.loggedIn);
         return data.loggedIn;
     } catch (error) {
-        console.error("Error checking login status:", error);
+        console.error("Network error while checking login status:", error);
         return false;
     }
 }
+
 
 function updateUserUI(isLoggedIn) {
     const userSection = document.getElementById("userSection");
