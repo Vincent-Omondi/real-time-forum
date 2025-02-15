@@ -4,7 +4,6 @@ package database
 import (
 	"database/sql"
 	"os"
-	"strings"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	_ "github.com/mattn/go-sqlite3"
@@ -59,7 +58,10 @@ func Init(env string) (*sql.DB, error) {
             last_name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            bio TEXT DEFAULT '',
+            avatar_url TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `)
 	if err != nil {
@@ -67,7 +69,7 @@ func Init(env string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	addMissingColumns(DB)
+	// addMissingColumns(DB)
 
 	// Create Posts table
 	_, err = DB.Exec(`
@@ -181,22 +183,25 @@ func Init(env string) (*sql.DB, error) {
 }
 
 // Function to Add Missing Columns for Existing Users Table
-func addMissingColumns(DB *sql.DB) {
-	columns := map[string]string{
-		"nickname":   "TEXT UNIQUE NOT NULL",
-		"age":        "INTEGER NOT NULL CHECK(age >= 13)",
-		"gender":     "TEXT NOT NULL CHECK(gender IN ('male', 'female', 'other'))",
-		"first_name": "TEXT NOT NULL",
-		"last_name":  "TEXT NOT NULL",
-		"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
-	}
+// func addMissingColumns(DB *sql.DB) {
+// 	columns := map[string]string{
+// 		"nickname":   "TEXT UNIQUE NOT NULL",
+// 		"age":        "INTEGER NOT NULL CHECK(age >= 13)",
+// 		"gender":     "TEXT NOT NULL CHECK(gender IN ('male', 'female', 'other'))",
+// 		"first_name": "TEXT NOT NULL",
+// 		"last_name":  "TEXT NOT NULL",
+// 		"bio":        "TEXT DEFAULT ''",
+// 		"avatar_url": "TEXT DEFAULT ''",
+// 		"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+// 		"updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+// 	}
 
-	for column, definition := range columns {
-		_, err := DB.Exec("ALTER TABLE users ADD COLUMN " + column + " " + definition)
-		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
-			logger.Warning("Column '%s' already exists or failed to add: %v", column, err)
-		} else {
-			logger.Info("Added column '%s' successfully", column)
-		}
-	}
-}
+// 	for column, definition := range columns {
+// 		_, err := DB.Exec("ALTER TABLE users ADD COLUMN " + column + " " + definition)
+// 		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+// 			logger.Warning("Column '%s' already exists or failed to add: %v", column, err)
+// 		} else {
+// 			logger.Info("Added column '%s' successfully", column)
+// 		}
+// 	}
+// }
