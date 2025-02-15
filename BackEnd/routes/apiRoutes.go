@@ -52,12 +52,13 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // APIRoutes sets up all API routes under the /api prefix
 func APIRoutes(db *sql.DB) {
-	// Controllers
+	// Controllers and Handlers
 	authController := controllers.NewAuthController(db)
 	postController := controllers.NewPostController(db)
 	commentController := controllers.NewCommentController(db)
 	likesController := controllers.NewLikesController(db)
 	commentVotesController := controllers.NewCommentVotesController(db)
+	profileHandler := handlers.NewProfileHandler(db)
 
 	// Rate limiters
 	authLimiter := middleware.NewRateLimiter(5, time.Minute)     // 5 attempts per minute
@@ -84,15 +85,6 @@ func APIRoutes(db *sql.DB) {
 		authLimiter.RateLimit,
 		middleware.ErrorHandler(handlers.ServeErrorPage),
 		middleware.ValidatePathAndMethod("/api/register", http.MethodPost),
-	))
-
-	http.Handle("/api/checkLoginStatus", middleware.ApplyMiddleware(
-		http.HandlerFunc(handlers.CheckLoginHandler),
-		middleware.SetCSPHeaders,
-		middleware.CORSMiddleware,
-		// pageLimiter.RateLimit,
-		// middleware.ErrorHandler(handlers.ServeErrorPage),
-		// middleware.ValidatePathAndMethod("/api/checkLoginStatus", http.MethodGet),
 	))
 
 	http.Handle("/api/logout", middleware.ApplyMiddleware(
@@ -204,6 +196,43 @@ func APIRoutes(db *sql.DB) {
 		middleware.AuthMiddleware,
 		middleware.ErrorHandler(handlers.ServeErrorPage),
 		middleware.ValidatePathAndMethod("/api/users/comment-votes", http.MethodGet),
+	))
+
+	// Profile routes
+	http.Handle("/api/user/profile", middleware.ApplyMiddleware(
+		http.HandlerFunc(profileHandler.GetProfileHandler),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/user/profile", http.MethodGet),
+	))
+
+	http.Handle("/api/user/profile/update", middleware.ApplyMiddleware(
+		http.HandlerFunc(profileHandler.UpdateProfileHandler),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/user/profile/update", http.MethodPut),
+	))
+
+	http.Handle("/api/user/posts", middleware.ApplyMiddleware(
+		http.HandlerFunc(profileHandler.GetUserPostsHandler),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/user/posts", http.MethodGet),
+	))
+
+	http.Handle("/api/user/likes", middleware.ApplyMiddleware(
+		http.HandlerFunc(profileHandler.GetUserLikesHandler),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/user/likes", http.MethodGet),
 	))
 
 	// WebSocket route
