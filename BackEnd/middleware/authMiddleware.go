@@ -6,26 +6,29 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 )
 
 // PublicPaths contains routes that don't require authentication
 var PublicPaths = map[string]bool{
-    "/login":        true,
-    "/register":     true,
-    "/api/login":    true,
-    "/api/register": true,
-    "/api/check-auth": true,
-    "/api/logout":   true,
-    "/static/":      true,
-    "/assets/":      true,
-    "/favicon.ico":  true,
+	"/login":          true,
+	"/register":       true,
+	"/api/login":      true,
+	"/api/register":   true,
+	"/api/check-auth": true,
+	"/api/logout":     true,
+	"/static/":        true,
+	"/assets/":        true,
+	"/favicon.ico":    true,
 }
 
 // AuthMiddleware checks if the user is authenticated
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("AuthMiddleware: Checking authentication")
+
 		// Check if path is public
 		path := r.URL.Path
 		if isPublicPath(path) {
@@ -33,32 +36,27 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Get session cookie
+		// Get session token from cookie
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
-			if strings.HasPrefix(r.URL.Path, "/api/") {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		
-
-		// Check if user is authenticated by validating the session token
-		userID, err := validateSessionToken(cookie.Value)
-		if err != nil {
-			logger.Warning("Invalid session for path %s from %s: %v", path, r.RemoteAddr, err)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			logger.Error("No session token cookie found: %v", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		// Add user ID to request context for later use
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, "userID", userID)
-		r = r.WithContext(ctx)
+		// Validate session and get userID
+		userID, exists := controllers.IsValidSession(database.GloabalDB, cookie.Value)
+		if !exists {
+			logger.Error("Invalid session token")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 
-		next.ServeHTTP(w, r)
+		// Add userID to context
+		ctx := context.WithValue(r.Context(), "userID", userID)
+		logger.Info("AuthMiddleware: Added userID %d to context", userID)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
