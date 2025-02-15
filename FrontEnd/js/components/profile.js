@@ -146,15 +146,47 @@ export class Profile {
 
     async handleLogout() {
         try {
-            const response = await fetch("/logout", { 
+            // First check auth status to get fresh CSRF token
+            const authResponse = await fetch('/api/check-auth', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+    
+            if (!authResponse.ok) {
+                throw new Error('Failed to verify authentication');
+            }
+    
+            const authData = await authResponse.json();
+            if (!authData.csrfToken) {
+                throw new Error('No CSRF token available');
+            }
+    
+            // Close WebSocket connection if it exists
+            if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+                this.webSocket.close();
+            }
+    
+            // Now make the logout request with the fresh CSRF token
+            const response = await fetch("/api/logout", { 
                 method: "POST", 
-                credentials: "include" 
+                credentials: "include",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': authData.csrfToken
+                }
             });
             
             if (response.ok) {
+                // Clear any stored tokens
+                document.querySelector('meta[name="csrf-token"]')?.remove();
                 window.location.href = "/login";
             } else {
-                console.error("Logout failed");
+                const error = await response.json();
+                console.error("Logout failed:", error.message || "Unknown error");
             }
         } catch (error) {
             console.error("Logout failed:", error);
