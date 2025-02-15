@@ -54,7 +54,6 @@ func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		logger.Info("Successfully registered user: %s", req.Nickname)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Registration successful",
@@ -100,7 +99,6 @@ func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		logger.Info("Successfully logged in user: %s", user.Nickname)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Login successful",
@@ -193,7 +191,20 @@ func isLoggedIn(db *sql.DB, r *http.Request) (bool, int) {
 }
 
 func CheckLoginHandler(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers first
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+	w.Header().Set("Content-Type", "application/json")
+
+	// Handle preflight OPTIONS request
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	loggedIn, userID := isLoggedIn(database.GloabalDB, r)
+	logger.Info("Login check - loggedIn: %v, userID: %d", loggedIn, userID)
 
 	var csrfToken string
 	if loggedIn {
@@ -203,11 +214,18 @@ func CheckLoginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"loggedIn":  loggedIn,
 		"csrfToken": csrfToken,
 		"userID":    userID,
-	})
+	}
+
+	// Log the response
+	logger.Info("Sending response: %+v", response)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error("Error encoding response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }
