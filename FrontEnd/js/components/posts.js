@@ -8,27 +8,7 @@ let userCommentVotes = {};
 
 export async function initPosts() {
     const container = document.querySelector('.posts-container');
-    const user = checkAuth();
-
-    if (user) {
-        // Initialize vote states if user is logged in
-        await initializeVoteStates();
-        
-        container.insertAdjacentHTML('beforebegin', `
-            <div class="create-post">
-                <h3>Create New Post</h3>
-                <form id="create-post-form">
-                    <input type="text" name="title" placeholder="Post Title" required>
-                    <textarea name="content" placeholder="Post Content" required></textarea>
-                    <button type="submit">Create Post</button>
-                </form>
-            </div>
-        `);
-
-        const createPostForm = document.getElementById('create-post-form');
-        createPostForm.addEventListener('submit', handleCreatePost);
-    }
-
+    await initializeVoteStates();
     await loadPosts();
 }
 
@@ -124,30 +104,6 @@ function createPostHTML(post) {
             </div>
         </div>
     `;
-}
-
-async function handleCreatePost(e) {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-
-    try {
-        const response = await fetch('/api/posts', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (response.ok) {
-            form.reset();
-            await loadPosts(); // Reload posts after creation
-        } else {
-            const error = await response.json();
-            alert(error.message);
-        }
-    } catch (error) {
-        console.error('Error creating post:', error);
-        alert('An error occurred while creating the post');
-    }
 }
 
 function attachPostEventListeners() {

@@ -1,7 +1,8 @@
 // Import components
-import { initAuth } from './components/auth.js';
+import { initAuth, checkAuth } from './components/auth.js';
 import { initPosts } from './components/posts.js';
-
+import { CreatePost } from './components/createPost.js';
+import { Profile } from './components/profile.js';
 import { initNotifications } from './components/notifications.js';
 import { initTheme } from './utils/theme.js';
 
@@ -10,6 +11,7 @@ const routes = {
     '/': requireAuth('home'),
     '/login': () => initAuth('login'),
     '/register': () => initAuth('register'),
+    '/create': createPost,
     '/posts': requireAuth('posts'),
     '/viewPost': requireAuth('viewPost'),
     '/messages': requireAuth('messages'),
@@ -47,7 +49,10 @@ async function checkLoginStatus() {
         }
 
         const data = await response.json();
-        updateUserUI(data.loggedIn);
+        if (data.loggedIn) {
+            const profile = new Profile();
+            profile.updateHeaderProfileUI(data.user);
+        }
         return data.loggedIn;
     } catch (error) {
         console.error("Network error while checking login status:", error);
@@ -55,31 +60,9 @@ async function checkLoginStatus() {
     }
 }
 
-
-function updateUserUI(isLoggedIn) {
-    const userSection = document.getElementById("userSection");
-    if (isLoggedIn) {
-        userSection.innerHTML = `
-            <div class="user-profile">
-                <button id="logoutBtn">Logout</button>
-            </div>
-        `;
-        document.getElementById("logoutBtn").addEventListener("click", logoutUser);
-    } else {
-        userSection.innerHTML = `
-            <a href="/login" class="button">Login</a>
-            <a href="/register" class="button">Register</a>
-        `;
-    }
-}
-
 async function logoutUser() {
-    try {
-        await fetch("/logout", { method: "POST", credentials: "include" });
-        window.location.href = "/login";
-    } catch (error) {
-        console.error("Logout failed:", error);
-    }
+    const profile = new Profile();
+    await profile.handleLogout();
 }
 
 // Component render functions
@@ -88,6 +71,10 @@ const components = {
         const container = document.getElementById('app-container');
         container.innerHTML = `<div class="posts-container"></div>`;
         await initPosts();
+    },
+    profile: async () => {
+        const profile = new Profile();
+        await profile.render();
     },
     viewPost: async () => {
         const container = document.getElementById('app-container');
@@ -177,3 +164,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     window.forumWS = ws;
 });
+
+async function createPost() {
+    if (await requireAuth()) {
+        const createPost = new CreatePost();
+        createPost.render(document.getElementById('app-container'));
+    }
+}
