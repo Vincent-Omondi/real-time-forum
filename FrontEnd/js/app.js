@@ -14,7 +14,7 @@ const routes = {
     '/create': createPost,
     '/posts': requireAuth('posts'),
     '/viewPost': requireAuth('viewPost'),
-    '/messages': requireAuth('messages'),
+    // '/messages': requireAuth('messages'),
     '/profile': requireAuth('profile'),
     '/logout': logoutUser
 };
@@ -34,7 +34,8 @@ function requireAuth(component) {
 // Authentication functions
 async function checkLoginStatus() {
     try {
-        const response = await fetch(`${window.location.origin}/api/checkLoginStatus`, {
+        console.log("Checking login status...");
+        const response = await fetch(`${window.location.origin}/api/check-auth`, {
             method: "GET",
             credentials: "include",
             headers: {
@@ -43,17 +44,35 @@ async function checkLoginStatus() {
             }
         });
 
+        console.log("Response status:", response.status);
+
         if (!response.ok) {
             console.error(`Error: Received status ${response.status}`);
             return false;
         }
 
         const data = await response.json();
-        if (data.loggedIn) {
+        console.log("Response data:", data);
+            
+        if (data.loggedIn && data.userID) {
             const profile = new Profile();
-            profile.updateHeaderProfileUI(data.user);
+            // Get user data from profile endpoint
+            const userResponse = await fetch('/api/user/profile', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                profile.updateHeaderProfileUI(userData);
+            }
+            return true;
         }
-        return data.loggedIn;
+        return false;
     } catch (error) {
         console.error("Network error while checking login status:", error);
         return false;
