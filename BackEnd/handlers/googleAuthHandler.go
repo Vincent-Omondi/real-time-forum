@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"text/template"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/auth"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
@@ -105,21 +104,15 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use template for redirection
-	tmpl, err := template.ParseFiles("FrontEnd/templates/oauth_callback.html")
-	if err != nil {
-		logger.Error("Failed to parse template: %v", err)
-		http.Error(w, "Server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.Execute(w, nil)
-	if err != nil {
-		logger.Error("Failed to execute template: %v", err)
-		http.Error(w, "Server error", http.StatusInternalServerError)
-		return
-	}
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "success",
+		"data": map[string]interface{}{
+			"message":  "Authentication successful",
+			"redirect": "/",
+		},
+	})
 }
 
 func exchangeCodeForToken(code string) (*GoogleTokenResponse, error) {

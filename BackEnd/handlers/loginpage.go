@@ -1,11 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
-	"text/template"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
-	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 )
 
 func LoginPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,17 +14,11 @@ func LoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmp, err := template.ParseFiles("FrontEnd/templates/login.html")
-	if err != nil {
-		logger.Error("Failed to parse login template: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	logger.Debug("Executing login template")
-	if err := tmp.Execute(w, nil); err != nil {
-		logger.Error("Failed to execute login template: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "success",
+		"data": map[string]interface{}{
+			"isAuthenticated": false,
+		},
+	})
 }

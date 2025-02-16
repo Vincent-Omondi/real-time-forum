@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
-	"text/template"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
@@ -32,29 +32,13 @@ func CreatePostPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := struct {
-		IsAuthenticated bool
-		CSRFToken       string
-		UserID          int
-	}{
-		IsAuthenticated: loggedIn,
-		CSRFToken:       csrfToken,
-		UserID:          UserID,
-	}
-
-	tmpl, err := template.ParseFiles(
-		"./FrontEnd/templates/layout.html",
-		"./FrontEnd/templates/post.html",
-	)
-	if err != nil {
-		logger.Error("An error Occurred While rendering Template %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		logger.Error("An error Occurred While rendering Template %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "success",
+		"data": map[string]interface{}{
+			"isAuthenticated": loggedIn,
+			"csrfToken":      csrfToken,
+			"userId":         UserID,
+		},
+	})
 }

@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
-	"strings"
-	"text/template"
-	"time"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
@@ -21,7 +19,8 @@ func NewHomePageHandler(db *sql.DB) http.HandlerFunc {
 }
 
 func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "application/json")
+
 	// Check if user is logged in
 	loggedIn, userID := isLoggedIn(h.db, r)
 	var csrfToken string
@@ -30,6 +29,9 @@ func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logger.Error("Error getting session token: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Failed to get session token",
+			})
 			return
 		}
 		// Generate CSRF token for the session
@@ -37,9 +39,13 @@ func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logger.Error("Error generating CSRF token: %V", err)
 			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Failed to generate CSRF token",
+			})
 			return
 		}
 	}
+
 	// Create a PostController instance using the handler's db
 	postController := controllers.NewPostController(h.db)
 	// Fetch posts from the database using the controller
@@ -47,6 +53,9 @@ func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("Failed to fetch Posts %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": "Failed to fetch posts",
+		})
 		return
 	}
 
@@ -60,44 +69,31 @@ func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logger.Error("Failed to fetch comment count for post %d: %v", posts[i].ID, err)
 			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Failed to fetch comment count",
+			})
 			return
 		}
 		posts[i].Comments = make([]models.Comment, 0)
 		posts[i].CommentCount = commentCount
 	}
 
-	// Create template function map
-	funcMap := template.FuncMap{
-		"formatTime": func(t time.Time) string {
-			return t.Format("Jan 02, 2006 at 15:04")
+	response := map[string]interface{}{
+		"status": "success",
+		"data": map[string]interface{}{
+			"isAuthenticated": loggedIn,
+			"csrfToken":       csrfToken,
+			"posts":           posts,
+			"userId":          userID,
 		},
-		"split": strings.Split,
-		"trim":  strings.TrimSpace,
 	}
 
-	// Create template with function map
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFiles(
-		"./FrontEnd/templates/layout.html",
-		"./FrontEnd/templates/homepage.html",
-	)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error("Failed to encode response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": "Failed to encode response",
+		})
 		return
-	}
-	data := struct {
-		IsAuthenticated bool
-		CSRFToken       string
-		Posts           []models.Post
-		UserID          int
-	}{
-		IsAuthenticated: loggedIn,
-		CSRFToken:       csrfToken,
-		Posts:           posts,
-		UserID:          userID,
-	}
-	// Execute template with data
-	err = tmpl.ExecuteTemplate(w, "layout.html", data)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

@@ -1,42 +1,120 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 )
 
-// Middleware to check if the user is authenticated
+// PublicPaths contains routes that don't require authentication
+var PublicPaths = map[string]bool{
+	"/login":          true,
+	"/register":       true,
+	"/api/login":      true,
+	"/api/register":   true,
+	"/api/check-auth": true,
+	"/api/logout":     true,
+	"/static/":        true,
+	"/assets/":        true,
+	"/favicon.ico":    true,
+}
+
+// AuthMiddleware checks if the user is authenticated
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if the user is authenticated
-		sessionCookie, err := r.Cookie("session_token")
-		if err != nil || sessionCookie == nil || sessionCookie.Value == "" {
-			logger.Warning("Unauthorized attempt  nil sessionCookie - remote_addr: %s, method: %s, path: %s",
-				r.RemoteAddr,
-				r.Method,
-				r.URL.Path,
-			)
-			http.Redirect(w, r, "/login_Page", http.StatusSeeOther)
+		logger.Info("AuthMiddleware: Checking authentication")
+
+		// Check if path is public
+		path := r.URL.Path
+		if isPublicPath(path) {
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Validating the session token
-		if _, valid := controllers.IsValidSession(database.GloabalDB, sessionCookie.Value); !valid {
-			logger.Warning("Unauthorized attempt  Invalid Session - remote_addr: %s, method: %s, path: %s",
-				r.RemoteAddr,
-				r.Method,
-				r.URL.Path,
-			)
-			http.Redirect(w, r, "/login_Page", http.StatusSeeOther)
+		// Get session token from cookie
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
+			logger.Error("No session token cookie found: %v", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		// User is authenticated, call the next handler
+		// Validate session and get userID
+		userID, exists := controllers.IsValidSession(database.GloabalDB, cookie.Value)
+		if !exists {
+			logger.Error("Invalid session token")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Add userID to context
+		ctx := context.WithValue(r.Context(), "userID", userID)
+		logger.Info("AuthMiddleware: Added userID %d to context", userID)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// isPublicPath checks if the given path is public
+func isPublicPath(path string) bool {
+	// Check exact matches
+	if PublicPaths[path] {
+		return true
+	}
+
+	// Check path prefixes
+	for publicPath := range PublicPaths {
+		if strings.HasSuffix(publicPath, "/") && strings.HasPrefix(path, publicPath) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// LogoutMiddleware handles user logout
+func LogoutMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/logout" {
+			// Delete the session cookie
+			cookie := &http.Cookie{
+				Name:     "session_token",
+				Value:    "",
+				Path:     "/",
+				Expires:  time.Now().Add(-1 * time.Hour), // Set to expired
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			}
+			http.SetCookie(w, cookie)
+
+			// Redirect to login page
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+// validateSessionToken checks if the session token is valid and returns the associated user ID
+func validateSessionToken(token string) (int, error) {
+	// Query the database to validate the session token and get the user ID
+	var userID int
+	query := `SELECT user_id FROM sessions 
+             WHERE session_token = ? AND expires_at > datetime('now')`
+
+	err := database.GloabalDB.QueryRow(query, token).Scan(&userID)
+	if err != nil {
+		return 0, err
+	}
+
+	return userID, nil
 }
 
 // Middleware chain to apply multiple middleware functions
