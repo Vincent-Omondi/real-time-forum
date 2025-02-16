@@ -11,10 +11,9 @@ const routes = {
     '/': requireAuth('home'),
     '/login': () => initAuth('login'),
     '/register': () => initAuth('register'),
-    '/create': createPost,
+    '/create': requireAuth('createPost'),
     '/posts': requireAuth('posts'),
     '/viewPost': requireAuth('viewPost'),
-    // '/messages': requireAuth('messages'),
     '/profile': requireAuth('profile'),
     '/logout': logoutUser
 };
