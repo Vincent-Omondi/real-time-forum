@@ -1,3 +1,4 @@
+import { updateUIBasedOnAuth } from '../utils/uiUtils.js';
 // Auth component for handling authentication
 export class Auth {
     constructor() {
@@ -34,8 +35,12 @@ export class Auth {
             } else if (this.isAuthenticated) {
                 this.updateUserSection();
             }
+
+            updateUIBasedOnAuth(this.isAuthenticated);
+
         } catch (error) {
             console.error('Auth check failed:', error);
+            updateUIBasedOnAuth(false);
         }
     }
 
