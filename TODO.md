@@ -187,3 +187,15 @@ real-time-forum/
 └── logs/                     # Log files for monitoring errors and API usage
     └── app.log
 ```
+
+State Management ⚠️
+The current state management is scattered across components. Consider implementing a centralized state management system:
+
+Component Event Handling ⚠️
+The onclick handler is inline. Better to use proper event delegation:
+
+Authentication Flow ⚠️
+The authentication check should be more centralized and consistent. Consider creating an AuthService:
+
+Error Handling ⚠️
+Add a global error boundary:
