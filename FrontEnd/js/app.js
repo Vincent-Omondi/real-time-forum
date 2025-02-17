@@ -6,6 +6,8 @@ import { Profile } from './components/profile.js';
 import { initNotifications } from './components/notifications.js';
 import { initTheme } from './utils/theme.js';
 
+let authInitialized = false;
+
 // Router configuration
 const routes = {
     '/': requireAuth('home'),
@@ -131,21 +133,34 @@ class Router {
 
     async handleRoute() {
         const path = window.location.pathname;
-        let componentName = this.routes[path];
-
-        if (!componentName) {
-            for (const [route, name] of Object.entries(this.routes)) {
-                if (path.startsWith(route)) {
-                    componentName = name;
-                    break;
+        
+        try {
+            // Show loading for protected routes during auth check
+            if (!authInitialized && !isPublicPath(path)) {
+                document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
+                await checkLoginStatus();
+            }
+            
+            let componentName = this.routes[path];
+            if (!componentName) {
+                for (const [route, name] of Object.entries(this.routes)) {
+                    if (path.startsWith(route)) {
+                        componentName = name;
+                        break;
+                    }
                 }
             }
-        }
 
-        if (componentName) {
-            await componentName();
-        } else {
-            document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
+            if (componentName) {
+                // Show loading while component loads and renders
+                document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
+                await componentName();
+            } else {
+                document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
+            }
+        } catch (error) {
+            console.error('Failed to load route:', error);
+            document.getElementById('app-container').innerHTML = '<div class="error">Failed to load content</div>';
         }
     }
 
@@ -174,14 +189,29 @@ function initWebSocket() {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
-    const router = new Router(routes);
-    const ws = initWebSocket();
+    // Show initial loading state
+    document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
     
-    await checkLoginStatus();
-    initTheme();
+    // Check auth first
+    const isAuthenticated = await checkLoginStatus();
+    authInitialized = true; // Set the flag after auth check
     
-    window.forumWS = ws;
+    // Only initialize router and other components if authenticated or on public paths
+    if (isAuthenticated || isPublicPath(window.location.pathname)) {
+        const router = new Router(routes);
+        const ws = initWebSocket();
+        initTheme();
+        window.forumWS = ws;
+        // Now handle the route after initialization
+        await router.handleRoute();
+    } else {
+        window.location.href = '/login';
+    }
 });
+
+function isPublicPath(path) {
+    return ['/login', '/register'].includes(path);
+}
 
 async function createPost() {
     if (await requireAuth()) {
