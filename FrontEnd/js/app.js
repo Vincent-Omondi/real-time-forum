@@ -5,6 +5,9 @@ import { CreatePost } from './components/createPost.js';
 import { Profile } from './components/profile.js';
 import { initNotifications } from './components/notifications.js';
 import { initTheme } from './utils/theme.js';
+import { Header } from './components/Header.js';
+import { Sidebar } from './components/Sidebar.js';
+import { MainContent } from './components/MainContent.js';
 
 let authInitialized = false;
 
@@ -189,26 +192,37 @@ function initWebSocket() {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {
-    // Show initial loading state
-    document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
+    const root = document.getElementById('root');
     
-    // Check auth first
+    // Create container
+    const container = document.createElement('div');
+    container.className = 'container';
+    
+    // Initialize components
+    const header = new Header();
+    const sidebar = new Sidebar();
+    const mainContent = new MainContent();
+    
+    // Render components
+    root.appendChild(header.render());
+    container.appendChild(sidebar.render());
+    container.appendChild(mainContent.render());
+    root.appendChild(container);
+    
+    // Rest of your initialization code...
     const isAuthenticated = await checkLoginStatus();
-    authInitialized = true; // Set the flag after auth check
+    authInitialized = true;
     
-    // Only initialize router and other components if authenticated or on public paths
     if (isAuthenticated || isPublicPath(window.location.pathname)) {
         const router = new Router(routes);
         const ws = initWebSocket();
         initTheme();
         window.forumWS = ws;
-        // Now handle the route after initialization
         await router.handleRoute();
     } else {
         window.location.href = '/login';
     }
 });
-
 function isPublicPath(path) {
     return ['/login', '/register'].includes(path);
 }
@@ -219,3 +233,4 @@ async function createPost() {
         createPost.render(document.getElementById('app-container'));
     }
 }
+
