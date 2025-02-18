@@ -113,6 +113,17 @@ const components = {
         const viewPostComponent = new ViewPost();
         container.innerHTML = await viewPostComponent.getHtml();
         await viewPostComponent.afterRender();
+    },
+    // Add missing component handlers
+    createPost: async () => {
+        const container = document.getElementById('app-container');
+        const createPost = new CreatePost();
+        createPost.render(container);
+    },
+    posts: async () => {
+        const container = document.getElementById('app-container');
+        container.innerHTML = `<div class="posts-container"></div>`;
+        await initPosts();
     }
 };
 
@@ -223,14 +234,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/login';
     }
 });
+
 function isPublicPath(path) {
     return ['/login', '/register'].includes(path);
 }
 
-async function createPost() {
-    if (await requireAuth()) {
-        const createPost = new CreatePost();
-        createPost.render(document.getElementById('app-container'));
-    }
-}
-
+// Remove this function as it's redundant with the components.createPost
+// async function createPost() {
+//     if (await requireAuth()) {
+//         const createPost = new CreatePost();
+//         createPost.render(document.getElementById('app-container'));
+//     }
+// }
