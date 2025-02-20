@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -40,7 +41,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		cookie, err := r.Cookie("session_token")
 		if err != nil {
 			logger.Error("No session token cookie found: %v", err)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   "Unauthorized",
+				"status":  "error",
+				"message": "No session token found. Please log in.",
+			})
 			return
 		}
 
@@ -48,7 +55,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		userID, exists := controllers.IsValidSession(database.GloabalDB, cookie.Value)
 		if !exists {
 			logger.Error("Invalid session token")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   "Unauthorized",
+				"status":  "error",
+				"message": "Invalid or expired session. Please log in again.",
+			})
 			return
 		}
 
