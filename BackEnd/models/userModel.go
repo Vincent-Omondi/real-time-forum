@@ -4,18 +4,19 @@ package models
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 type User struct {
-	ID        int    `json:"id"`
-	Nickname  string `json:"nickname"`
-	Age       int    `json:"age"`
-	Gender    string `json:"gender"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	CreatedAt string `json:"createdAt"`
+	ID        int       `json:"id"`
+	Nickname  string    `json:"nickname"`
+	Age       int       `json:"age"`
+	Gender    string    `json:"gender"`
+	FirstName string    `json:"firstName"`
+	LastName  string    `json:"lastName"`
+	Email     string    `json:"email"`
+	Password  string    `json:"password"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // LoginRequest represents the login request structure
