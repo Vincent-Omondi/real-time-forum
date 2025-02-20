@@ -27,19 +27,17 @@ func (pc *ProfileController) GetUserProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var profile models.Profile
+	var user models.User
 	err := pc.db.QueryRow(`
-		SELECT id, nickname, email, created_at,
-			   COALESCE(bio, '') as bio, 
-			   COALESCE(avatar_url, '') as avatar_url
+		SELECT id, nickname, first_name, last_name, email, created_at
 		FROM users 
 		WHERE id = ?`, userID).Scan(
-		&profile.ID,
-		&profile.Nickname,
-		&profile.Email,
-		&profile.CreatedAt,
-		&profile.Bio,
-		&profile.AvatarURL,
+		&user.ID,
+		&user.Nickname,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.CreatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -49,13 +47,22 @@ func (pc *ProfileController) GetUserProfile(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err != nil {
-		logger.Error("Database error when fetching profile: %v", err)
+		logger.Error("Database error when fetching user: %v", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
+	// Convert user data to profile response
+	profileResponse := models.ProfileResponse{
+		Nickname:  user.Nickname,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"), // RFC3339 format
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(profile.ToResponse())
+	json.NewEncoder(w).Encode(profileResponse)
 }
 
 // UpdateUserProfile handles the updating of user profile information
@@ -79,10 +86,10 @@ func (pc *ProfileController) UpdateUserProfile(w http.ResponseWriter, r *http.Re
 
 	result, err := pc.db.Exec(`
 		UPDATE users 
-		SET bio = ?, avatar_url = ?, updated_at = ?
+		SET first_name = ?, last_name = ?, updated_at = ?
 		WHERE id = ?`,
-		updateReq.Bio,
-		updateReq.AvatarURL,
+		updateReq.FirstName,
+		updateReq.LastName,
 		time.Now(),
 		userID,
 	)

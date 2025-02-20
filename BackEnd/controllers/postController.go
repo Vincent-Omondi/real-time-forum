@@ -21,6 +21,20 @@ func (pc *PostController) InsertPost(post models.Post) (int, error) {
 	if post.Title == "" {
 		return 0, errors.New("post title is required")
 	}
+
+	// Get user details for the post author
+	var user models.User
+	err := pc.DB.QueryRow(`
+		SELECT nickname 
+		FROM users 
+		WHERE id = ?`, post.UserID).Scan(&user.Nickname)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch user details: %w", err)
+	}
+
+	// Set author name using user's nickname
+	post.Author = user.Nickname
+
 	// Insert the post with the UserID
 	result, err := pc.DB.Exec(`
 		INSERT INTO posts (title, user_id, author, category, likes, dislikes, user_vote, content, timestamp, image_url)
@@ -41,10 +55,12 @@ func (pc *PostController) InsertPost(post models.Post) (int, error) {
 
 func (pc *PostController) GetAllPosts() ([]models.Post, error) {
 	rows, err := pc.DB.Query(`
-		SELECT id, title, user_id, author, category, likes, dislikes, 
-			   user_vote, content, timestamp, image_url 
-		FROM posts 
-		ORDER BY timestamp DESC
+		SELECT p.id, p.title, p.user_id, p.author, p.category, p.likes, p.dislikes, 
+			   p.user_vote, p.content, p.timestamp, p.image_url,
+			   u.nickname
+		FROM posts p
+		JOIN users u ON p.user_id = u.id
+		ORDER BY p.timestamp DESC
 	`)
 	if err != nil {
 		logger.Error("Database query failed in GetAllPosts: %v", err)
@@ -55,15 +71,19 @@ func (pc *PostController) GetAllPosts() ([]models.Post, error) {
 	var posts []models.Post
 	for rows.Next() {
 		var post models.Post
+		var nickname string
 		err := rows.Scan(
 			&post.ID, &post.Title, &post.UserID, &post.Author,
 			&post.Category, &post.Likes, &post.Dislikes,
 			&post.UserVote, &post.Content, &post.Timestamp, &post.ImageUrl,
+			&nickname,
 		)
 		if err != nil {
 			logger.Error("Row scan failed in GetAllPosts: %v", err)
 			return nil, fmt.Errorf("failed to scan post: %w", err)
 		}
+		// Update author with current nickname
+		post.Author = nickname
 		posts = append(posts, post)
 	}
 
@@ -80,14 +100,17 @@ func (pc *PostController) GetPostByID(postID string) (models.Post, error) {
 	}
 
 	err := pc.DB.QueryRow(`
-        SELECT id, title, user_id, author, category, likes, dislikes, 
-               user_vote, content, timestamp, image_url 
-        FROM posts 
-        WHERE id = ?
+        SELECT p.id, p.title, p.user_id, p.author, p.category, p.likes, p.dislikes, 
+               p.user_vote, p.content, p.timestamp, p.image_url,
+               u.nickname
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = ?
     `, postID).Scan(
 		&post.ID, &post.Title, &post.UserID, &post.Author,
 		&post.Category, &post.Likes, &post.Dislikes,
 		&post.UserVote, &post.Content, &post.Timestamp, &post.ImageUrl,
+		&post.Author, // Update author with current nickname
 	)
 
 	if err != nil {
@@ -104,18 +127,30 @@ func (pc *PostController) GetPostByID(postID string) (models.Post, error) {
 }
 
 func (pc *PostController) UpdatePost(post models.Post) error {
+	// Get user details for the post author
+	var user models.User
+	err := pc.DB.QueryRow(`
+		SELECT nickname 
+		FROM users 
+		WHERE id = ?`, post.UserID).Scan(&user.Nickname)
+	if err != nil {
+		return fmt.Errorf("failed to fetch user details: %w", err)
+	}
+
+	// Update author name using user's current nickname
+	post.Author = user.Nickname
+
 	// Prepare the SQL statement for updating the post
 	query := `
 	UPDATE posts
-	SET title = ?, author = ?, user_id = ?, category = ?, likes = ?, dislikes = ?, user_vote = ?, content = ?, image_url = ?, timestamp = ?
-	WHERE id = ?;
+	SET title = ?, author = ?, category = ?, likes = ?, dislikes = ?, user_vote = ?, content = ?, image_url = ?, timestamp = ?
+	WHERE id = ? AND user_id = ?;
 	`
 
 	// Execute the SQL statement with the post data
 	result, err := pc.DB.Exec(query,
 		post.Title,
 		post.Author,
-		post.UserID,
 		post.Category,
 		post.Likes,
 		post.Dislikes,
@@ -124,6 +159,7 @@ func (pc *PostController) UpdatePost(post models.Post) error {
 		post.ImageUrl,
 		post.Timestamp,
 		post.ID,
+		post.UserID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update post: %w", err)
@@ -135,7 +171,7 @@ func (pc *PostController) UpdatePost(post models.Post) error {
 		return fmt.Errorf("failed to check rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("no post found with ID %d", post.ID)
+		return fmt.Errorf("no post found with ID %d or unauthorized", post.ID)
 	}
 
 	return nil
