@@ -1,4 +1,4 @@
-// Import components
+// Import components and utilities
 import { initAuth, checkAuth } from './components/auth.js';
 import { initPosts } from './components/posts.js';
 import { CreatePost } from './components/createPost.js';
@@ -11,325 +11,360 @@ import { MainContent } from './components/MainContent.js';
 
 let authInitialized = false;
 
-// Router configuration
+function updateUserSection() {
+  console.log("Updating user section...");
+  // Implement UI updates for user section
+}
+
+// Function to update UI based on authentication status
+function updateUIBasedOnAuth(isLoggedIn) {
+  console.log("Updating UI based on authentication status: ", isLoggedIn);
+  // Implement UI updates for logged-in/logged-out state
+}
+
+// Existing router and authentication logic here...
+
+export { updateUserSection, updateUIBasedOnAuth };
+
+/**
+ * Router configuration.
+ * For protected routes, we wrap the component in requireAuth() so that an
+ * authentication check is performed before the component renders.
+ */
 const routes = {
-    '/': requireAuth('home'),
-    '/login': () => initAuth('login'),
-    '/register': () => initAuth('register'),
-    '/create': requireAuth('createPost'),
-    '/posts': requireAuth('posts'),
-    '/viewPost': requireAuth('viewPost'),
-    '/profile': requireAuth('profile'),
-    '/logout': logoutUser
+  '/': requireAuth('home'),
+  '/login': () => initAuth('login'),
+  '/register': () => initAuth('register'),
+  '/create': requireAuth('createPost'),
+  '/posts': requireAuth('posts'),
+  '/viewPost': requireAuth('viewPost'),
+  '/profile': requireAuth('profile'),
+  '/logout': logoutUser
 };
 
-// Ensure authentication before allowing access to routes
-function requireAuth(component) {
-    return async () => {
-        const isLoggedIn = await checkLoginStatus();
-        if (!isLoggedIn) {
-            window.location.href = '/login';
-            return;
-        }
-        return components[component]();
-    };
+/**
+ * Wraps a component render function with an authentication check.
+ * If the user is not authenticated, they are redirected to the login page.
+ * @param {string} componentKey - Key to look up the component in our components object.
+ */
+function requireAuth(componentKey) {
+  return async () => {
+    const isLoggedIn = await checkLoginStatus();
+    if (!isLoggedIn) {
+      window.location.href = '/login';
+      return;
+    }
+    return components[componentKey]();
+  };
 }
 
-// Authentication functions
+/**
+ * Checks login status by calling the /api/check-auth endpoint.
+ * If authenticated, the CSRF token is updated and the user's profile data is optionally refreshed.
+ * @returns {Promise<boolean>} True if logged in; false otherwise.
+ */
+let authCheckPromise = null;
+
 async function checkLoginStatus() {
+  // Use an existing promise if a check is in progress
+  if (authCheckPromise) return authCheckPromise;
+
+  authCheckPromise = (async () => {
     try {
-        console.log("Checking login status...");
-        const response = await fetch(`${window.location.origin}/api/check-auth`, {
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
-        });
-
-        console.log("Response status:", response.status);
-
-        if (!response.ok) {
-            console.error(`Error: Received status ${response.status}`);
-            return false;
+      console.log("Checking auth status...");
+      const response = await fetch('/api/check-auth', {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json' // Removed "Content-Type"
         }
+      });
 
-        const data = await response.json();
-        console.log("Response data:", data);
-            
-        if (data.loggedIn && data.userID) {
-            // Update CSRF token
-            let csrfMeta = document.querySelector('meta[name="csrf-token"]');
-            if (!csrfMeta) {
-                csrfMeta = document.createElement('meta');
-                csrfMeta.setAttribute('name', 'csrf-token');
-                document.head.appendChild(csrfMeta);
-            }
-            csrfMeta.setAttribute('content', data.csrfToken);
+      const data = await response.json();
+      console.log("Auth check data:", data);
 
-            // Get user profile data and update UI
-            try {
-                const userResponse = await fetch('/api/user/profile', {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    const profile = new Profile();
-                    profile.updateHeaderProfileUI(userData);
-                }
-            } catch (error) {
-                console.error('Error loading user profile:', error);
-            }
-
-            return true;
+      // Update CSRF token in localStorage and meta tag for subsequent requests
+      if (data.loggedIn && data.csrfToken) {
+        localStorage.setItem('csrfToken', data.csrfToken);
+        let metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (!metaTag) {
+          metaTag = document.createElement('meta');
+          metaTag.setAttribute('name', 'csrf-token');
+          document.head.appendChild(metaTag);
         }
-        return false;
-    } catch (error) {
-        console.error("Network error while checking login status:", error);
-        return false;
-    }
-}
+        metaTag.setAttribute('content', data.csrfToken);
 
-async function logoutUser() {
-    const profile = new Profile();
-    await profile.handleLogout();
-}
-
-// Component render functions
-const components = {
-    home: async () => {
-        const container = document.getElementById('app-container');
-        
-        // First ensure the container exists
-        if (!container) {
-            console.error('App container not found');
-            return;
-        }
-
-        // Initialize the posts container without affecting other elements
-        if (!container.querySelector('.posts-container')) {
-            container.innerHTML = `<div class="posts-container"></div>`;
-        }
-
-        try {
-            // Initialize or update profile first
+        // Optionally, if your API does not return full user info (only userID),
+        // fetch additional details from /api/user/profile
+        if (!data.user) {
+          try {
             const userResponse = await fetch('/api/user/profile', {
-                method: 'GET',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                }
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                'Accept': 'application/json'
+              }
             });
-            
             if (userResponse.ok) {
-                const userData = await userResponse.json();
-                const profile = new Profile();
-                profile.updateHeaderProfileUI(userData);
+              const userData = await userResponse.json();
+              // Update your userStore or UI with userData as needed
             }
-
-            // Then load posts
-            await initPosts();
-
-            // Verify profile section is still present
-            const userSection = document.getElementById('userSection');
-            if (!userSection || !userSection.querySelector('.profile-section')) {
-                const retryResponse = await fetch('/api/user/profile', {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (retryResponse.ok) {
-                    const userData = await retryResponse.json();
-                    const profile = new Profile();
-                    profile.updateHeaderProfileUI(userData);
-                }
-            }
-        } catch (error) {
-            console.error('Error in home component:', error);
-            container.innerHTML = '<div class="error-message">Error loading content</div>';
+          } catch (error) {
+            console.error('Error loading user profile:', error);
+          }
         }
-    },
-    profile: async () => {
-        const profile = new Profile();
-        await profile.render();
-    },
-    viewPost: async () => {
-        const container = document.getElementById('app-container');
-        const urlParams = new URLSearchParams(window.location.search);
-        const postId = urlParams.get('id');
+      }
 
-        if (!postId) {
-            container.innerHTML = '<div class="error">Post not found</div>';
-            return;
-        }
+      // If not logged in and not on a public page, redirect to login
+      if (!data.loggedIn && !isPublicPath(window.location.pathname)) {
+        window.location.href = '/login';
+      } else if (data.loggedIn) {
+        // Update the UI (e.g., render logout button)
+        updateUserSection();
+      }
 
-        const ViewPost = (await import('./components/viewPost.js')).default;
-        const viewPostComponent = new ViewPost();
-        container.innerHTML = await viewPostComponent.getHtml();
-        await viewPostComponent.afterRender();
-    },
-    // Add missing component handlers
-    createPost: async () => {
-        const container = document.getElementById('app-container');
-        const createPost = new CreatePost();
-        await createPost.render(container);
-    },
-    posts: async () => {
-        const container = document.getElementById('app-container');
-        container.innerHTML = `<div class="posts-container"></div>`;
-        await initPosts();
+      // Update any UI elements that rely on auth state
+      updateUIBasedOnAuth(data.loggedIn);
+      return data.loggedIn;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      updateUIBasedOnAuth(false);
+      return false;
+    } finally {
+      // Reset the promise after the check finishes so future calls can re-run it
+      authCheckPromise = null;
     }
+  })();
+
+  return authCheckPromise;
+}
+
+/**
+ * Calls the Profile component to handle logout (which, in turn, calls the logout logic in auth.js).
+ */
+async function logoutUser() {
+  const profile = new Profile();
+  await profile.handleLogout();
+}
+
+/**
+ * Component render functions.
+ * Each key corresponds to a route. Protected components (e.g., home, createPost) are wrapped via requireAuth.
+ */
+const components = {
+  home: async () => {
+    const container = document.getElementById('app-container');
+    if (!container) {
+      console.error('App container not found');
+      return;
+    }
+    // Ensure a posts container is present
+    if (!container.querySelector('.posts-container')) {
+      container.innerHTML = `<div class="posts-container"></div>`;
+    }
+
+    try {
+      // Update header/profile info
+      const userResponse = await fetch('/api/user/profile', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        const profile = new Profile();
+        profile.updateHeaderProfileUI(userData);
+      }
+      // Load posts
+      await initPosts();
+
+      // Verify the profile section exists; if not, try refreshing it.
+      const userSection = document.getElementById('userSection');
+      if (!userSection || !userSection.querySelector('.profile-section')) {
+        const retryResponse = await fetch('/api/user/profile', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        if (retryResponse.ok) {
+          const userData = await retryResponse.json();
+          const profile = new Profile();
+          profile.updateHeaderProfileUI(userData);
+        }
+      }
+    } catch (error) {
+      console.error('Error in home component:', error);
+      container.innerHTML = '<div class="error-message">Error loading content</div>';
+    }
+  },
+  profile: async () => {
+    const profile = new Profile();
+    await profile.render();
+  },
+  viewPost: async () => {
+    const container = document.getElementById('app-container');
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('id');
+    if (!postId) {
+      container.innerHTML = '<div class="error">Post not found</div>';
+      return;
+    }
+    const ViewPost = (await import('./components/viewPost.js')).default;
+    const viewPostComponent = new ViewPost();
+    container.innerHTML = await viewPostComponent.getHtml();
+    await viewPostComponent.afterRender();
+  },
+  createPost: async () => {
+    const container = document.getElementById('app-container');
+    const createPost = new CreatePost();
+    await createPost.render(container);
+  },
+  posts: async () => {
+    const container = document.getElementById('app-container');
+    container.innerHTML = `<div class="posts-container"></div>`;
+    await initPosts();
+  }
 };
 
-// Router implementation
+// Router implementation: handles navigation events, popstate, and link clicks.
 class Router {
-    constructor(routes) {
-        this.routes = routes;
-        this.init();
-    }
+  constructor(routes) {
+    this.routes = routes;
+    this.init();
+  }
 
-    init() {
-        this.handleRoute();
-        window.addEventListener('popstate', () => this.handleRoute());
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('[data-link]')) {
-                e.preventDefault();
-                this.navigateTo(e.target.href);
-            }
-        });
-    }
+  init() {
+    this.handleRoute();
+    window.addEventListener('popstate', () => this.handleRoute());
+    document.addEventListener('click', (e) => {
+      if (e.target.matches('[data-link]')) {
+        e.preventDefault();
+        this.navigateTo(e.target.href);
+      }
+    });
+  }
 
-    async handleRoute() {
-        const path = window.location.pathname;
-        
-        try {
-            // Show loading for protected routes during auth check
-            if (!authInitialized && !isPublicPath(path)) {
-                document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
-                await checkLoginStatus();
-            }
-            
-            let componentName = this.routes[path];
-            if (!componentName) {
-                for (const [route, name] of Object.entries(this.routes)) {
-                    if (path.startsWith(route)) {
-                        componentName = name;
-                        break;
-                    }
-                }
-            }
+  async handleRoute() {
+    const path = window.location.pathname;
+    try {
+      // For protected routes, if auth is not yet initialized, show a loading indicator and check auth
+      if (!authInitialized && !isPublicPath(path)) {
+        document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
+        await checkLoginStatus();
+      }
 
-            if (componentName) {
-                // Show loading while component loads and renders
-                document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
-                await componentName();
-            } else {
-                document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
-            }
-        } catch (error) {
-            console.error('Failed to load route:', error);
-            document.getElementById('app-container').innerHTML = '<div class="error">Failed to load content</div>';
+      let componentFunction = this.routes[path];
+      if (!componentFunction) {
+        // If no exact match, try matching a route prefix.
+        for (const [route, handler] of Object.entries(this.routes)) {
+          if (path.startsWith(route)) {
+            componentFunction = handler;
+            break;
+          }
         }
-    }
+      }
 
-    navigateTo(url) {
-        window.history.pushState(null, null, url);
-        this.handleRoute();
+      if (componentFunction) {
+        document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
+        await componentFunction();
+      } else {
+        document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
+      }
+    } catch (error) {
+      console.error('Failed to load route:', error);
+      document.getElementById('app-container').innerHTML = '<div class="error">Failed to load content</div>';
     }
+  }
+
+  navigateTo(url) {
+    window.history.pushState(null, null, url);
+    this.handleRoute();
+  }
 }
 
-// Initialize WebSocket connection
+/**
+ * Initializes a WebSocket connection to listen for notifications.
+ * Dispatches incoming messages to the appropriate notifications handler.
+ */
 function initWebSocket() {
-    const ws = new WebSocket('ws://' + window.location.host + '/ws');
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-            case 'message':
-                initNotifications().newMessage(data);
-                break;
-            case 'notification':
-                initNotifications().newNotification(data);
-                break;
-        }
-    };
-    return ws;
+  const ws = new WebSocket('ws://' + window.location.host + '/ws');
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    switch (data.type) {
+      case 'message':
+        initNotifications().newMessage(data);
+        break;
+      case 'notification':
+        initNotifications().newNotification(data);
+        break;
+    }
+  };
+  return ws;
 }
 
-// Initialize the application
+// Application initialization: renders global layout and starts router, WebSocket, and theme.
 document.addEventListener('DOMContentLoaded', async () => {
-    const root = document.getElementById('root');
-    
-    // Create container
-    const container = document.createElement('div');
-    container.className = 'container';
-    
-    // Initialize components
-    const header = new Header();
-    const sidebar = new Sidebar();
-    const mainContent = new MainContent();
-    const profile = new Profile();
-    
-    // Render components
-    root.appendChild(header.render());
-    container.appendChild(sidebar.render());
-    container.appendChild(mainContent.render());
-    root.appendChild(container);
-    
-    // Check authentication and initialize profile
-    const isAuthenticated = await checkLoginStatus();
-    authInitialized = true;
-    
-    if (isAuthenticated) {
-        try {
-            const userResponse = await fetch('/api/user/profile', {
-                method: 'GET',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (userResponse.ok) {
-                const userData = await userResponse.json();
-                profile.updateHeaderProfileUI(userData);
-            }
-        } catch (error) {
-            console.error('Error loading user profile:', error);
+  const root = document.getElementById('root');
+  
+  // Create a container for main layout
+  const container = document.createElement('div');
+  container.className = 'container';
+  
+  // Initialize and render header, sidebar, main content, and profile sections
+  const header = new Header();
+  const sidebar = new Sidebar();
+  const mainContent = new MainContent();
+  const profile = new Profile();
+  
+  root.appendChild(header.render());
+  container.appendChild(sidebar.render());
+  container.appendChild(mainContent.render());
+  root.appendChild(container);
+  
+  // Check authentication and update profile information
+  const isAuthenticated = await checkLoginStatus();
+  authInitialized = true;
+  if (isAuthenticated) {
+    try {
+      const userResponse = await fetch('/api/user/profile', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         }
+      });
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        profile.updateHeaderProfileUI(userData);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
     }
-    
-    if (isAuthenticated || isPublicPath(window.location.pathname)) {
-        const router = new Router(routes);
-        const ws = initWebSocket();
-        initTheme();
-        window.forumWS = ws;
-        await router.handleRoute();
-    } else {
-        window.location.href = '/login';
-    }
+  }
+  
+  // Start the router, WebSocket, and theme initialization if the current path is public or user is authenticated.
+  if (isAuthenticated || isPublicPath(window.location.pathname)) {
+    const router = new Router(routes);
+    const ws = initWebSocket();
+    initTheme();
+    window.forumWS = ws;
+    await router.handleRoute();
+  } else {
+    window.location.href = '/login';
+  }
 });
 
+/**
+ * Utility function to check if the current path is public (login or register).
+ * @param {string} path - The current URL path.
+ * @returns {boolean} True if the path is public.
+ */
 function isPublicPath(path) {
-    return ['/login', '/register'].includes(path);
+  return ['/login', '/register'].includes(path);
 }
-
-// Remove this function as it's redundant with the components.createPost
-// async function createPost() {
-//     if (await requireAuth()) {
-//         const createPost = new CreatePost();
-//         createPost.render(document.getElementById('app-container'));
-//     }
-// }

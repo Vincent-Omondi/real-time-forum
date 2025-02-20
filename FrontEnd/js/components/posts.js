@@ -1,4 +1,4 @@
-import { checkAuth } from './auth.js';
+import userStore from '../store/userStore.js';
 import { initComments } from './comments.js';
 import { postsAPI } from '../utils/api.js';
 
@@ -22,13 +22,9 @@ async function loadPosts() {
     try {
         const response = await postsAPI.list();
         if (response.status === 'success' && response.data.posts) {
-            // Create a temporary container for the posts
+            // Create HTML for each post
             const postsHTML = response.data.posts.map(post => createPostHTML(post)).join('');
-            
-            // Update only the posts container content
             container.innerHTML = postsHTML;
-            
-            // Add event listeners to post actions
             attachPostEventListeners();
         } else {
             container.innerHTML = '<p class="no-posts-message">No posts available</p>';
@@ -40,10 +36,11 @@ async function loadPosts() {
 }
 
 function createPostHTML(post) {
-    const user = checkAuth();
+    // Get the current user from centralized state management.
+    const user = userStore.getCurrentUser();
     const isAuthor = user && user.id === post.UserID;
     
-    // Format timestamp
+    // Format timestamp for display
     const timestamp = new Date(post.Timestamp).toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -127,7 +124,7 @@ function createPostHTML(post) {
 }
 
 function attachPostEventListeners() {
-    // Options menu toggle
+    // Toggle options menu visibility
     document.querySelectorAll('.options-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -136,14 +133,14 @@ function attachPostEventListeners() {
         });
     });
 
-    // Close options menu when clicking outside
+    // Close any open options menu when clicking outside
     document.addEventListener('click', () => {
         document.querySelectorAll('.options-menu.show').forEach(menu => {
             menu.classList.remove('show');
         });
     });
 
-    // Edit post
+    // Edit post action
     document.querySelectorAll('.edit-post-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -152,7 +149,7 @@ function attachPostEventListeners() {
         });
     });
 
-    // Delete post
+    // Delete post action
     document.querySelectorAll('.delete-post-btn').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -165,9 +162,8 @@ function attachPostEventListeners() {
                             'Content-Type': 'application/json'
                         }
                     });
-
                     if (response.ok) {
-                        await loadPosts(); // Reload posts after successful deletion
+                        await loadPosts();
                         showToast('Post deleted successfully');
                     } else {
                         const error = await response.json();
@@ -181,11 +177,11 @@ function attachPostEventListeners() {
         });
     });
 
-    // Vote buttons
+    // Vote button actions
     document.querySelectorAll('[id="Like"], [id="DisLike"]').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.preventDefault();
-            const user = checkAuth();
+            const user = userStore.getCurrentUser();
             if (!user) {
                 showToast('Please log in to vote');
                 return;
@@ -205,7 +201,6 @@ function attachPostEventListeners() {
                         vote: voteType
                     })
                 });
-
                 if (response.ok) {
                     const data = await response.json();
                     updateVoteCounts(postId, data.likes, data.dislikes);
@@ -274,4 +269,4 @@ function showToast(message) {
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
-} 
+}
