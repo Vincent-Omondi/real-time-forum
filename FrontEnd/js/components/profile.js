@@ -80,18 +80,31 @@ export class Profile {
     updateProfileUI(userData) {
         if (!userData) return;
         
-        // Use nickname as username if username is not available
-        const username = userData.username || userData.nickname;
-        const avatarUrl = userData.avatar_url || this.defaultAvatarPath;
+        const {
+            nickname,
+            first_name,
+            last_name,
+            email,
+            created_at
+        } = userData;
+
+        // Only create full name if both first_name and last_name exist and are not empty
+        let displayName = nickname;
+        if (first_name && last_name && first_name.trim() && last_name.trim()) {
+            const fullName = `${first_name} ${last_name}`.trim();
+            displayName = `${fullName} (${nickname})`;
+        }
         
-        document.getElementById('username').textContent = username;
-        document.getElementById('email').textContent = userData.email;
-        document.getElementById('joinDate').textContent = `Joined: ${new Date(userData.created_at).toLocaleDateString()}`;
+        // Update profile information
+        document.getElementById('username').textContent = displayName;
+        document.getElementById('email').textContent = email || 'No email provided';
+        document.getElementById('joinDate').textContent = `Joined: ${new Date(created_at).toLocaleDateString()}`;
         
         // Update avatar if available
         const avatarImg = document.querySelector('.avatar-large');
         if (avatarImg) {
-            avatarImg.src = avatarUrl;
+            avatarImg.src = this.defaultAvatarPath;
+            avatarImg.alt = `${nickname}'s profile picture`;
         }
         
         // Update header profile section
@@ -104,15 +117,13 @@ export class Profile {
         const userSection = document.getElementById('userSection');
         if (!userSection) return;
 
-        // Use nickname as username if username is not available
-        const username = userData.username || userData.nickname;
-        const avatarUrl = userData.avatar_url || this.defaultAvatarPath;
+        const { nickname } = userData;
 
         userSection.innerHTML = `
             <div class="profile-section">
                 <div class="profile-trigger">
-                    <img src="${avatarUrl}" alt="Profile" class="avatar">
-                    <span class="username-display">${username}</span>
+                    <img src="${this.defaultAvatarPath}" alt="${nickname}'s profile picture" class="avatar">
+                    <span class="username-display">${this.escapeHtml(nickname)}</span>
                     <i class="fas fa-chevron-down"></i>
                 </div>
                 <div class="profile-dropdown">
@@ -125,23 +136,35 @@ export class Profile {
                 </div>
             </div>
         `;
-        
-        // Add click event for logout
-        document.getElementById('logoutButton').addEventListener('click', () => {
-            this.handleLogout();
-        });
 
-        // Toggle dropdown on click
+        // After HTML is populated, add event listeners
+        this.attachDropdownEventListeners(userSection);
+    }
+
+    attachDropdownEventListeners(userSection) {
         const profileTrigger = userSection.querySelector('.profile-trigger');
-        profileTrigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            userSection.querySelector('.profile-dropdown').classList.toggle('show');
-        });
+        const profileDropdown = userSection.querySelector('.profile-dropdown');
+        const logoutButton = document.getElementById('logoutButton');
 
-        // Close dropdown when clicking outside
-        document.addEventListener('click', () => {
-            userSection.querySelector('.profile-dropdown').classList.remove('show');
-        });
+        if (profileTrigger && profileDropdown) {
+            // Toggle dropdown on click
+            profileTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('show');
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', () => {
+                profileDropdown.classList.remove('show');
+            });
+        }
+
+        // Add click event for logout
+        if (logoutButton) {
+            logoutButton.addEventListener('click', () => {
+                this.handleLogout();
+            });
+        }
     }
 
     async handleLogout() {
@@ -227,20 +250,27 @@ export class Profile {
 
     renderActivityContent(tab, data) {
         const contentDiv = document.getElementById('activities-content');
-        if (data.length === 0) {
+        if (!Array.isArray(data) || data.length === 0) {
             contentDiv.innerHTML = `<p>No ${tab} found.</p>`;
             return;
         }
 
         const content = data.map(item => {
+            const {
+                title,
+                content,
+                created_at,
+                likes,
+            } = item;
+
             return `
                 <div class="activity-item">
-                    <h4>${item.title}</h4>
-                    <p>${item.content.substring(0, 100)}...</p>
+                    <h4>${this.escapeHtml(title)}</h4>
+                    <p>${this.escapeHtml(content.substring(0, 100))}${content.length > 100 ? '...' : ''}</p>
                     <div class="activity-meta">
-                        <span>${new Date(item.created_at).toLocaleDateString()}</span>
+                        <span>${new Date(created_at).toLocaleDateString()}</span>
                         ${tab === 'posts' ? 
-                            `<span>${item.likes} likes</span>` : 
+                            `<span>${likes} like${likes !== 1 ? 's' : ''}</span>` : 
                             '<span>You liked this</span>'}
                     </div>
                 </div>
@@ -252,17 +282,25 @@ export class Profile {
 
     async updateProfile(profileData) {
         try {
+            // Validate profile data structure
+            const validatedData = {
+                first_name: profileData.first_name || '',
+                last_name: profileData.last_name || ''
+            };
+
             const response = await fetch('/api/user/profile/update', {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
-                body: JSON.stringify(profileData)
+                body: JSON.stringify(validatedData)
             });
 
             if (!response.ok) {
-                throw new Error('Failed to update profile');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update profile');
             }
 
             const result = await response.json();
@@ -271,5 +309,15 @@ export class Profile {
             console.error('Error updating profile:', error);
             throw error;
         }
+    }
+
+    // Utility method to prevent XSS
+    escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 } 

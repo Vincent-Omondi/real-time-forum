@@ -1,87 +1,120 @@
+import { postsAPI } from '../utils/api.js';
+
 export class CreatePost {
     constructor() {
         this.selectedCategories = new Set();
         this.mediaFile = null;
     }
 
-    render(container) {
-        container.innerHTML = `
-            <div class="post-editor-container">
-                <div class="post-editor-header">
-                    <h2>Create a Post</h2>
-                </div>
-                
-                <form id="postForm" class="post-form">
-                    <div class="input-group">
-                        <input type="text" 
-                               id="post-title" 
-                               name="title" 
-                               class="input-field" 
-                               placeholder="Title" 
-                               maxlength="300" 
-                               pattern="[^<>]*" 
-                               title="HTML tags are not allowed" 
-                               required>
+    async render(container) {
+        try {
+            // Fetch CSRF token and auth status from check-auth endpoint instead
+            const response = await fetch('/api/check-auth', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch authentication status');
+            }
+
+            const data = await response.json();
+            
+            // Update CSRF token meta tag if we have a token
+            if (data.csrfToken) {
+                let csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                if (!csrfMeta) {
+                    csrfMeta = document.createElement('meta');
+                    csrfMeta.setAttribute('name', 'csrf-token');
+                    document.head.appendChild(csrfMeta);
+                }
+                csrfMeta.setAttribute('content', data.csrfToken);
+            }
+
+            container.innerHTML = `
+                <div class="post-editor-container">
+                    <div class="post-editor-header">
+                        <h2>Create a Post</h2>
                     </div>
-
-                    <div class="tab-container">
-                        <div class="tabs">
-                            <button type="button" id="text-tab" class="tab active">Text</button>
-                            <button type="button" id="media-tab" class="tab">Media</button>
+                    
+                    <form id="postForm" class="post-form">
+                        <div class="input-group">
+                            <input type="text" 
+                                   id="post-title" 
+                                   name="title" 
+                                   class="input-field" 
+                                   placeholder="Title" 
+                                   maxlength="300" 
+                                   pattern="[^<>]*" 
+                                   title="HTML tags are not allowed" 
+                                   required>
                         </div>
 
-                        <div id="text-content" class="tab-content active">
-                            <div class="post-body" 
-                                 id="post-body" 
-                                 contenteditable="true" 
-                                 data-placeholder="Share your thoughts..."></div>
-                        </div>
+                        <div class="tab-container">
+                            <div class="tabs">
+                                <button type="button" id="text-tab" class="tab active">Text</button>
+                                <button type="button" id="media-tab" class="tab">Media</button>
+                            </div>
 
-                        <div id="media-content" class="tab-content">
-                            <div class="media-upload-area" id="dropzone">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                                <p>Drag and drop images here</p>
-                                <p class="small">or click to upload</p>
-                                <input type="file" 
-                                       id="file-input" 
-                                       name="post-file" 
-                                       hidden 
-                                       accept="image/*,video/*">
+                            <div id="text-content" class="tab-content active">
+                                <div class="post-body" 
+                                     id="post-body" 
+                                     contenteditable="true" 
+                                     data-placeholder="Share your thoughts..."></div>
+                            </div>
+
+                            <div id="media-content" class="tab-content">
+                                <div class="media-upload-area" id="dropzone">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>Drag and drop images here</p>
+                                    <p class="small">or click to upload</p>
+                                    <input type="file" 
+                                           id="file-input" 
+                                           name="post-file" 
+                                           hidden 
+                                           accept="image/*,video/*">
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="category-section">
-                        <select id="category-select" class="input-field">
-                            <option value="">Select a category...</option>
-                            <option value="technology">Technology</option>
-                            <option value="programming">Programming</option>
-                            <option value="gaming">Gaming</option>
-                            <option value="science">Science</option>
-                            <option value="movies">Movies</option>
-                            <option value="music">Music</option>
-                            <option value="art">Art</option>
-                            <option value="food">Food</option>
-                            <option value="news">News</option>
-                            <option value="fashion">Fashion</option>
-                            <option value="business">Business</option>
-                            <option value="sports">Sports</option>
-                        </select>
-                        <div id="selected-categories" class="selected-categories"></div>
-                    </div>
+                        <div class="category-section">
+                            <select id="category-select" class="input-field">
+                                <option value="">Select a category...</option>
+                                <option value="technology">Technology</option>
+                                <option value="programming">Programming</option>
+                                <option value="gaming">Gaming</option>
+                                <option value="science">Science</option>
+                                <option value="movies">Movies</option>
+                                <option value="music">Music</option>
+                                <option value="art">Art</option>
+                                <option value="food">Food</option>
+                                <option value="news">News</option>
+                                <option value="fashion">Fashion</option>
+                                <option value="business">Business</option>
+                                <option value="sports">Sports</option>
+                            </select>
+                            <div id="selected-categories" class="selected-categories"></div>
+                        </div>
 
-                    <div class="post-actions">
-                        <button type="submit" class="button-primary">Post</button>
-                        <button type="button" class="button-outline" id="cancel-post">Cancel</button>
-                    </div>
-                </form>
-            </div>
-            <div id="toast" class="toast">
-                <div id="toastMessage" class="toast-message"></div>
-            </div>
-        `;
+                        <div class="post-actions">
+                            <button type="submit" class="button-primary">Post</button>
+                            <button type="button" class="button-outline" id="cancel-post">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="toast" class="toast">
+                    <div id="toastMessage" class="toast-message"></div>
+                </div>
+            `;
 
-        this.attachEventListeners();
+            this.attachEventListeners();
+        } catch (error) {
+            console.error('Error rendering create post component:', error);
+        }
     }
 
     attachEventListeners() {
@@ -207,28 +240,27 @@ export class CreatePost {
         const content = document.getElementById('post-body').innerHTML;
         const categories = Array.from(this.selectedCategories).join(',');
 
+        if (!title || !content || !categories) {
+            this.showToast('Please fill in all required fields (title, content, and at least one category)');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('title', title);
         formData.append('content', content);
-        formData.append('categories', categories);
+        formData.append('category', categories);
         if (this.mediaFile) {
-            formData.append('media', this.mediaFile);
+            formData.append('post-file', this.mediaFile);
         }
 
         try {
-            const response = await fetch('/api/posts', {
-                method: 'POST',
-                body: formData,
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create post');
-            }
-
+            const response = await postsAPI.create(formData);
+            
+            // If we get here, the post was created successfully
             window.location.href = '/';
         } catch (error) {
-            this.showToast(error.message);
+            console.error('Post creation error:', error);
+            this.showToast(error.message || 'Failed to create post. Please try again.');
         }
     }
 
