@@ -59,21 +59,35 @@ async function checkLoginStatus() {
         console.log("Response data:", data);
             
         if (data.loggedIn && data.userID) {
-            const profile = new Profile();
-            // Get user data from profile endpoint
-            const userResponse = await fetch('/api/user/profile', {
-                method: 'GET',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (userResponse.ok) {
-                const userData = await userResponse.json();
-                profile.updateHeaderProfileUI(userData);
+            // Update CSRF token
+            let csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (!csrfMeta) {
+                csrfMeta = document.createElement('meta');
+                csrfMeta.setAttribute('name', 'csrf-token');
+                document.head.appendChild(csrfMeta);
             }
+            csrfMeta.setAttribute('content', data.csrfToken);
+
+            // Get user profile data and update UI
+            try {
+                const userResponse = await fetch('/api/user/profile', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    const profile = new Profile();
+                    profile.updateHeaderProfileUI(userData);
+                }
+            } catch (error) {
+                console.error('Error loading user profile:', error);
+            }
+
             return true;
         }
         return false;
@@ -92,8 +106,60 @@ async function logoutUser() {
 const components = {
     home: async () => {
         const container = document.getElementById('app-container');
-        container.innerHTML = `<div class="posts-container"></div>`;
-        await initPosts();
+        
+        // First ensure the container exists
+        if (!container) {
+            console.error('App container not found');
+            return;
+        }
+
+        // Initialize the posts container without affecting other elements
+        if (!container.querySelector('.posts-container')) {
+            container.innerHTML = `<div class="posts-container"></div>`;
+        }
+
+        try {
+            // Initialize or update profile first
+            const userResponse = await fetch('/api/user/profile', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                const profile = new Profile();
+                profile.updateHeaderProfileUI(userData);
+            }
+
+            // Then load posts
+            await initPosts();
+
+            // Verify profile section is still present
+            const userSection = document.getElementById('userSection');
+            if (!userSection || !userSection.querySelector('.profile-section')) {
+                const retryResponse = await fetch('/api/user/profile', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (retryResponse.ok) {
+                    const userData = await retryResponse.json();
+                    const profile = new Profile();
+                    profile.updateHeaderProfileUI(userData);
+                }
+            }
+        } catch (error) {
+            console.error('Error in home component:', error);
+            container.innerHTML = '<div class="error-message">Error loading content</div>';
+        }
     },
     profile: async () => {
         const profile = new Profile();
@@ -118,7 +184,7 @@ const components = {
     createPost: async () => {
         const container = document.getElementById('app-container');
         const createPost = new CreatePost();
-        createPost.render(container);
+        await createPost.render(container);
     },
     posts: async () => {
         const container = document.getElementById('app-container');
@@ -213,6 +279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const header = new Header();
     const sidebar = new Sidebar();
     const mainContent = new MainContent();
+    const profile = new Profile();
     
     // Render components
     root.appendChild(header.render());
@@ -220,9 +287,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     container.appendChild(mainContent.render());
     root.appendChild(container);
     
-    // Rest of your initialization code...
+    // Check authentication and initialize profile
     const isAuthenticated = await checkLoginStatus();
     authInitialized = true;
+    
+    if (isAuthenticated) {
+        try {
+            const userResponse = await fetch('/api/user/profile', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                profile.updateHeaderProfileUI(userData);
+            }
+        } catch (error) {
+            console.error('Error loading user profile:', error);
+        }
+    }
     
     if (isAuthenticated || isPublicPath(window.location.pathname)) {
         const router = new Router(routes);
