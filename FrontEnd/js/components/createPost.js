@@ -8,11 +8,15 @@ export class CreatePost {
 
   async render(container) {
     try {
+      if (!container) {
+        throw new Error('Container element is required');
+      }
+
       // Create a wrapper div for the create post content
-      const content = document.createElement('div');
-      content.className = 'create-post-wrapper';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'create-post-wrapper';
       
-      content.innerHTML = `
+      wrapper.innerHTML = `
         <div class="post-editor-container">
           <div class="post-editor-header">
             <h2>Create a Post</h2>
@@ -88,18 +92,16 @@ export class CreatePost {
         </div>
       `;
 
-      // Set the content to the container
-      if (container instanceof HTMLElement) {
-        container.appendChild(content);
-      } else {
-        window.mainContent.setContent(content);
-      }
+      // Clear the container and append the wrapper
+      container.innerHTML = '';
+      container.appendChild(wrapper);
 
+      // Now attach event listeners
       this.attachEventListeners();
     } catch (error) {
       console.error('Error rendering create post component:', error);
-      if (window.mainContent) {
-        window.mainContent.setContent('<div class="error">Error loading create post form</div>');
+      if (container) {
+        container.innerHTML = '<div class="error">Error loading create post form</div>';
       }
     }
   }
@@ -112,6 +114,11 @@ export class CreatePost {
     const fileInput = document.getElementById('file-input');
     const categorySelect = document.getElementById('category-select');
     const cancelButton = document.getElementById('cancel-post');
+
+    if (!form || !textTab || !mediaTab || !dropzone || !fileInput || !categorySelect || !cancelButton) {
+      console.error('Required elements not found in the DOM');
+      return;
+    }
 
     // Tab switching
     textTab.addEventListener('click', () => this.switchTab('text'));
@@ -130,7 +137,8 @@ export class CreatePost {
     form.addEventListener('submit', this.handleSubmit.bind(this));
 
     // Cancel button - use router navigation
-    cancelButton.addEventListener('click', () => {
+    cancelButton.addEventListener('click', (e) => {
+      e.preventDefault();
       if (window.router) {
         window.router.navigateTo('/');
       } else {
@@ -144,6 +152,11 @@ export class CreatePost {
     const mediaContent = document.getElementById('media-content');
     const textTab = document.getElementById('text-tab');
     const mediaTab = document.getElementById('media-tab');
+
+    if (!textContent || !mediaContent || !textTab || !mediaTab) {
+      console.error('Tab elements not found in the DOM');
+      return;
+    }
 
     if (tab === 'text') {
       textContent.classList.add('active');
@@ -252,7 +265,7 @@ export class CreatePost {
     }
 
     try {
-      const response = await postsAPI.create(formData);
+      await postsAPI.create(formData);
       // On success, navigate to home page using router
       if (window.router) {
         window.router.navigateTo('/');
