@@ -3,7 +3,7 @@ import { logout } from '../components/auth.js';
 
 export class Profile {
   constructor() {
-    this.container = document.getElementById('app-container');
+    this.container = document.querySelector('.main-content');
     this.defaultAvatarPath = './assets/images/default-avatar.png';
   }
 
@@ -11,6 +11,10 @@ export class Profile {
    * Renders the full profile page.
    */
   async render() {
+    if (!this.container) {
+      console.error('Main content container not found');
+      return;
+    }
     this.container.innerHTML = this.getProfileHTML();
     this.attachEventListeners();
     await this.loadUserData();
@@ -292,7 +296,8 @@ export class Profile {
    * @returns {string} The escaped string.
    */
   escapeHtml(unsafe) {
-    return unsafe
+    if (!unsafe) return '';
+    return String(unsafe)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
