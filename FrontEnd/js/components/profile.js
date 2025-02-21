@@ -70,19 +70,63 @@ export class Profile {
   async loadUserData() {
     try {
       const currentUser = userStore.getCurrentUser();
-      if (currentUser) {
-        this.updateProfileUI(currentUser);
-      } else {
-        throw new Error('User not found in state');
+      console.log('Current user data:', currentUser);
+      
+      // Fetch fresh user data from the server
+      const response = await fetch('/api/user/profile', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
       }
+
+      const userData = await response.json();
+      console.log('Fetched user data:', userData);
+
+      // Use nickname as ID if no ID is provided
+      if (userData && userData.nickname) {
+        const userWithId = {
+          ...userData,
+          id: userData.id || userData.nickname // fallback to nickname if no id
+        };
+        
+        // Update the store with the new user data
+        userStore.updateUser(userWithId.id, userWithId);
+        
+        // If we don't have a current user set, authenticate this user
+        if (!currentUser) {
+          userStore.authenticateUser(userWithId.id);
+        }
+        
+        this.updateProfileUI(userWithId);
+      } else {
+        console.error('Invalid user data received from server:', userData);
+        throw new Error('Invalid user data received from server');
+      }
+
     } catch (error) {
       console.error('Error loading user data:', error);
       this.container.innerHTML = `
         <div class="error-message">
           <i class="fas fa-exclamation-circle"></i>
           <p>Failed to load profile data. Please try again later.</p>
+          <p class="error-details">${error.message}</p>
         </div>
       `;
+      
+      // If we get an error and there's no authenticated user, redirect to login
+      if (!userStore.getCurrentUser()) {
+        if (window.router) {
+          window.router.navigateTo('/login');
+        } else {
+          window.location.href = '/login';
+        }
+      }
     }
   }
 
@@ -93,27 +137,51 @@ export class Profile {
   updateProfileUI(userData) {
     if (!userData) return;
 
-    const { nickname, first_name, last_name, email, created_at } = userData;
+    const { 
+      nickname, 
+      first_name, 
+      last_name, 
+      email, 
+      created_at 
+    } = userData;
 
-    // Construct display name: use full name if available, otherwise fall back to nickname.
+    // Construct display name: use full name if available, otherwise fall back to nickname
     let displayName = nickname;
     if (first_name && last_name && first_name.trim() && last_name.trim()) {
       const fullName = `${first_name} ${last_name}`.trim();
       displayName = `${fullName} (${nickname})`;
     }
 
-    document.getElementById('username').textContent = displayName;
+    // Format the date properly
+    let joinDate = 'Join date not available';
+    if (created_at) {
+      try {
+        // Ensure created_at is properly parsed
+        const date = new Date(created_at);
+        if (!isNaN(date.getTime())) {
+          joinDate = date.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing date:', error);
+      }
+    }
+
+    document.getElementById('username').textContent = displayName || 'Anonymous';
     document.getElementById('email').textContent = email || 'No email provided';
-    document.getElementById('joinDate').textContent = `Joined: ${new Date(created_at).toLocaleDateString()}`;
+    document.getElementById('joinDate').textContent = `Joined: ${joinDate}`;
 
     // Update avatar image
     const avatarImg = document.querySelector('.avatar-large');
     if (avatarImg) {
-      avatarImg.src = this.defaultAvatarPath;
-      avatarImg.alt = `${nickname}'s profile picture`;
+      avatarImg.src = userData.avatar_url || this.defaultAvatarPath;
+      avatarImg.alt = `${displayName}'s profile picture`;
     }
 
-    // Also update header profile section using centralized state
+    // Update header profile section
     this.updateHeaderProfileUI(userData);
   }
 
