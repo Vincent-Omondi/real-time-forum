@@ -88,18 +88,19 @@ export class Profile {
       const userData = await response.json();
       console.log('Fetched user data:', userData);
 
-      // Use nickname as ID if no ID is provided
+      // If we have current user, use its ID, otherwise use nickname
       if (userData && userData.nickname) {
         const userWithId = {
           ...userData,
-          id: userData.id || userData.nickname // fallback to nickname if no id
+          id: currentUser?.id || userData.nickname // use existing ID if available
         };
         
         // Update the store with the new user data
-        userStore.updateUser(userWithId.id, userWithId);
-        
-        // If we don't have a current user set, authenticate this user
-        if (!currentUser) {
+        if (currentUser) {
+          userStore.updateUser(currentUser.id, userWithId);
+        } else {
+          // If no current user, add as new user with nickname as ID
+          userStore.addUser(userWithId);
           userStore.authenticateUser(userWithId.id);
         }
         
