@@ -21,7 +21,11 @@ func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 		var req models.RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode registration request: %v", err)
-			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request format",
+			})
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
@@ -29,7 +33,11 @@ func RegisterHandler(ac *controllers.AuthController) http.HandlerFunc {
 		user, err := ac.Register(&req)
 		if err != nil {
 			logger.Warning("Registration failed: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
@@ -65,6 +73,10 @@ func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 		var req models.LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("Failed to decode login request: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request format",
+			})
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -73,7 +85,11 @@ func LoginHandler(ac *controllers.AuthController) http.HandlerFunc {
 		user, err := ac.Login(&req)
 		if err != nil {
 			logger.Warning("Login failed: %v", err)
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid credentials",
+			})
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
