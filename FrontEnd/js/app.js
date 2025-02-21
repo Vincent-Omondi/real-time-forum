@@ -226,10 +226,14 @@ const components = {
     await viewPostComponent.afterRender();
   },
   createPost: async () => {
-    const createPost = new CreatePost();
-    const content = document.createElement('div');
-    await createPost.render(content);
-    window.mainContent.setContent(content);
+    try {
+      const createPost = new CreatePost();
+      window.mainContent.setContent(''); // Clear existing content
+      await createPost.render(window.mainContent.element); // Pass the main content element directly
+    } catch (error) {
+      console.error('Error rendering create post component:', error);
+      window.mainContent.setContent('<div class="error">Failed to load create post form</div>');
+    }
   },
   posts: async () => {
     const content = document.createElement('div');
