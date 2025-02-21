@@ -36,7 +36,7 @@ export default class ViewPost {
             <div class="error-container">
               <h2>Post Not Found</h2>
               <p>The post you're looking for doesn't exist or has been removed.</p>
-              <button class="back-button" onclick="history.back()">
+              <button class="back-button" data-link onclick="window.router.navigateTo('/')">
                 <i class="fa-solid fa-arrow-left"></i> Go Back
               </button>
             </div>
@@ -69,7 +69,7 @@ export default class ViewPost {
         <div class="error-container">
           <h2>Error Loading Post</h2>
           <p>Sorry, we couldn't load the post. Please try again later.</p>
-          <button class="back-button" onclick="history.back()">
+          <button class="back-button" data-link onclick="window.router.navigateTo('/')">
             <i class="fa-solid fa-arrow-left"></i> Go Back
           </button>
         </div>
@@ -85,7 +85,7 @@ export default class ViewPost {
     return `
       <div class="posts-container">
         <div class="back-button-container">
-          <button onclick="history.back()" class="back-button">
+          <button data-link onclick="window.router.navigateTo('/')" class="back-button">
             <i class="fa-solid fa-arrow-left"></i> Back
           </button>
         </div>
@@ -360,8 +360,12 @@ export default class ViewPost {
         throw new Error('Failed to submit comment');
       }
 
-      // Refresh the page view after comment submission
-      window.location.reload();
+      // Refresh the page view using router
+      if (window.router) {
+        window.router.navigateTo(`/viewPost?id=${postId}`);
+      } else {
+        window.location.reload();
+      }
     } catch (error) {
       console.error('Error submitting comment:', error);
       this.showToast('Failed to submit comment');
