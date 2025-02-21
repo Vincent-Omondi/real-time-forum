@@ -20,24 +20,28 @@ export class Auth {
    */
   async checkAuthStatus() {
     try {
-      const response = await fetch('/api/check-auth');
+      const response = await fetch('/api/check-auth', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
 
       if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        throw new Error(`HTTP error! Status: ${response.status}`);
       }
       
-      // Ensure response is JSON before parsing
       let data;
       try {
-          data = await response.json();
+        data = await response.json();
       } catch (error) {
-          console.error("Failed to parse JSON response", error);
-          data = null; // Handle gracefully
+        console.error("Failed to parse JSON response", error);
+        data = null;
       }
-      
 
-      // If logged in and backend provides CSRF token and user info
-      if (data.loggedIn && data.csrfToken && data.user) {
+      // If logged in and backend provides CSRF token
+      if (data?.loggedIn && data?.csrfToken) {
         // Update CSRF token in localStorage and in a meta tag
         localStorage.setItem('csrfToken', data.csrfToken);
         let metaTag = document.querySelector('meta[name="csrf-token"]');
@@ -48,23 +52,30 @@ export class Auth {
         }
         metaTag.setAttribute('content', data.csrfToken);
 
-        // Update userStore: add or update the user, then authenticate
-        if (!userStore.getUser(data.user.id)) {
-          userStore.addUser(data.user);
-        } else {
-          userStore.updateUser(data.user.id, data.user);
+        // Create basic user object from userID if no full user object provided
+        if (data.userID && !data.user) {
+          data.user = { id: data.userID };
         }
-        userStore.authenticateUser(data.user.id);
+
+        // Update userStore if user data is provided
+        if (data.user) {
+          if (!userStore.getUser(data.user.id)) {
+            userStore.addUser(data.user);
+          } else {
+            userStore.updateUser(data.user.id, data.user);
+          }
+          userStore.authenticateUser(data.user.id);
+        }
       }
 
-      // If not authenticated and not on a public path, redirect to login.
-      if (!userStore.isAuthenticated() && !this.isPublicPath()) {
+      const isAuthenticated = userStore.isAuthenticated();
+      if (!isAuthenticated && !this.isPublicPath()) {
         window.location.href = '/login';
-      } else if (userStore.isAuthenticated()) {
+      } else if (isAuthenticated) {
         this.updateUserSection();
       }
 
-      updateUIBasedOnAuth(userStore.isAuthenticated());
+      updateUIBasedOnAuth(isAuthenticated);
 
     } catch (error) {
       console.error('Auth check failed:', error);

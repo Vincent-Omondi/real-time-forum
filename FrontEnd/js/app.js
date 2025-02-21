@@ -8,6 +8,8 @@ import { initTheme } from './utils/theme.js';
 import { Header } from './components/Header.js';
 import { Sidebar } from './components/Sidebar.js';
 import { MainContent } from './components/MainContent.js';
+import { Auth } from './components/auth.js';
+import userStore from './store/userStore.js';
 
 let authInitialized = false;
 
@@ -72,65 +74,28 @@ async function checkLoginStatus() {
   authCheckPromise = (async () => {
     try {
       console.log("Checking auth status...");
-      const response = await fetch('/api/check-auth', {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json' // Removed "Content-Type"
-        }
-      });
-
-      const data = await response.json();
-      console.log("Auth check data:", data);
-
-      // Update CSRF token in localStorage and meta tag for subsequent requests
-      if (data.loggedIn && data.csrfToken) {
-        localStorage.setItem('csrfToken', data.csrfToken);
-        let metaTag = document.querySelector('meta[name="csrf-token"]');
-        if (!metaTag) {
-          metaTag = document.createElement('meta');
-          metaTag.setAttribute('name', 'csrf-token');
-          document.head.appendChild(metaTag);
-        }
-        metaTag.setAttribute('content', data.csrfToken);
-
-        // Optionally, if your API does not return full user info (only userID),
-        // fetch additional details from /api/user/profile
-        if (!data.user) {
-          try {
-            const userResponse = await fetch('/api/user/profile', {
-              method: 'GET',
-              credentials: 'include',
-              headers: {
-                'Accept': 'application/json'
-              }
-            });
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              // Update your userStore or UI with userData as needed
-            }
-          } catch (error) {
-            console.error('Error loading user profile:', error);
-          }
-        }
-      }
+      const auth = new Auth();
+      await auth.checkAuthStatus();
+      
+      // Use userStore to determine authentication status
+      const isAuthenticated = userStore.isAuthenticated();
+      console.log("Auth check complete - authenticated:", isAuthenticated);
 
       // If not logged in and not on a public page, redirect to login
-      if (!data.loggedIn && !isPublicPath(window.location.pathname)) {
+      if (!isAuthenticated && !isPublicPath(window.location.pathname)) {
         window.location.href = '/login';
-      } else if (data.loggedIn) {
-        // Update the UI (e.g., render logout button)
+      } else if (isAuthenticated) {
         updateUserSection();
       }
 
       // Update any UI elements that rely on auth state
-      updateUIBasedOnAuth(data.loggedIn);
-      return data.loggedIn;
+      updateUIBasedOnAuth(isAuthenticated);
+      return isAuthenticated;
     } catch (error) {
       console.error('Auth check failed:', error);
       updateUIBasedOnAuth(false);
       return false;
     } finally {
-      // Reset the promise after the check finishes so future calls can re-run it
       authCheckPromise = null;
     }
   })();
