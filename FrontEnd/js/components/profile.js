@@ -251,11 +251,10 @@ export class Profile {
   async handleLogout() {
     try {
       await logout();
-      if (window.router) {
-        window.router.navigateTo('/login');
-      } else {
-        window.location.href = '/login';
-      }
+      // Clear any user data from store
+      userStore.logout();
+      // Refresh the page to ensure a clean state
+      window.location.reload();
     } catch (error) {
       console.error("Logout failed:", error);
     }

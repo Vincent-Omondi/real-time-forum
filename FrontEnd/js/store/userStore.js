@@ -87,37 +87,28 @@ class UserStore {
     }
   
     /**
-     * Update an existing user or add if not exists.
+     * Update an existing user.
      * @param {string|number} id - The unique identifier of the user.
      * @param {Object} updatedProperties - An object with properties to update.
+     * @throws Will throw an error if the user does not exist or updatedProperties is not a valid object.
      */
     updateUser(id, updatedProperties) {
-        if (!id) {
-            throw new Error('User ID is required for update');
-        }
-        
-        if (!updatedProperties || typeof updatedProperties !== 'object') {
-            throw new Error('updatedProperties must be an object');
-        }
-
-        // Ensure the id is included in the updated properties
-        const properties = {
-            ...updatedProperties,
-            id: id // ensure id is always present
-        };
-
-        // Add or update user
-        this.#users.set(id, properties);
-        
-        // Notify about the change
-        const eventType = this.#users.has(id) ? 'UPDATE_USER' : 'ADD_USER';
-        this._notifySubscribers({ type: eventType, payload: properties });
-
-        // If this is the current user, update the currentUser reference
-        if (this.#currentUser && this.#currentUser.id === id) {
-            this.#currentUser = properties;
-            this._notifySubscribers({ type: 'CURRENT_USER_UPDATED', payload: properties });
-        }
+      if (!this.#users.has(id)) {
+        throw new Error(`User with id ${id} does not exist`);
+      }
+      if (!updatedProperties || typeof updatedProperties !== 'object') {
+        throw new Error('updatedProperties must be an object');
+      }
+      const user = this.#users.get(id);
+      const updatedUser = { ...user, ...updatedProperties };
+      this.#users.set(id, updatedUser);
+      this._notifySubscribers({ type: 'UPDATE_USER', payload: updatedUser });
+  
+      // If the updated user is the currently authenticated user, update authentication state
+      if (this.#currentUser && this.#currentUser.id === id) {
+        this.#currentUser = updatedUser;
+        this._notifySubscribers({ type: 'CURRENT_USER_UPDATED', payload: updatedUser });
+      }
     }
   
     /**
