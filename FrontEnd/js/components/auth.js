@@ -70,7 +70,11 @@ export class Auth {
 
       const isAuthenticated = userStore.isAuthenticated();
       if (!isAuthenticated && !this.isPublicPath()) {
-        window.location.href = '/login';
+        if (window.router) {
+          window.router.navigateTo('/login');
+        } else {
+          window.location.href = new URL('/login', window.location.origin).href;
+        }
       } else if (isAuthenticated) {
         this.updateUserSection();
       }
@@ -122,15 +126,23 @@ export class Auth {
           </div>
           <button type="submit">Login</button>
           <p class="auth-switch">
-            Don't have an account? <a href="/register">Register</a>
+            Don't have an account? <a href="/register" data-link>Register</a>
           </p>
         </form>
         <div id="loginError" class="auth-error"></div>
       </div>
     `;
 
-    container.innerHTML = loginHTML;
-    this.attachLoginHandler();
+    if (container.setContent) {
+      container.setContent(loginHTML);
+    } else {
+      container.innerHTML = loginHTML;
+    }
+    
+    // Wait for next tick to ensure DOM is updated
+    setTimeout(() => {
+      this.attachLoginHandler();
+    }, 0);
   }
 
   /**
@@ -170,20 +182,27 @@ export class Auth {
           </div>
           <button type="submit">Register</button>
           <p class="auth-switch">
-            Already have an account? <a href="/login">Login</a>
+            Already have an account? <a href="/login" data-link>Login</a>
           </p>
         </form>
         <div id="registerError" class="auth-error"></div>
       </div>
     `;
 
-    container.innerHTML = registerHTML;
-    this.attachRegisterHandler();
+    if (container.setContent) {
+      container.setContent(registerHTML);
+    } else {
+      container.innerHTML = registerHTML;
+    }
+    
+    // Wait for next tick to ensure DOM is updated
+    setTimeout(() => {
+      this.attachRegisterHandler();
+    }, 0);
   }
 
   /**
    * Attaches the event handler for the login form submission.
-   * On success, the returned user data is stored in userStore and the user is authenticated.
    */
   attachLoginHandler() {
     const form = document.getElementById('loginForm');
@@ -206,7 +225,6 @@ export class Auth {
 
         const result = await response.json();
         
-        // Store CSRF token if provided
         if (result.csrfToken) {
           localStorage.setItem('csrfToken', result.csrfToken);
           let metaTag = document.querySelector('meta[name="csrf-token"]');
@@ -218,7 +236,6 @@ export class Auth {
           metaTag.setAttribute('content', result.csrfToken);
         }
         
-        // Update userStore with returned user info
         if (result.user) {
           if (!userStore.getUser(result.user.id)) {
             userStore.addUser(result.user);
@@ -228,7 +245,11 @@ export class Auth {
           userStore.authenticateUser(result.user.id);
         }
         
-        window.location.href = '/';
+        if (window.router) {
+          window.router.navigateTo('/');
+        } else {
+          window.location.href = new URL('/', window.location.origin).href;
+        }
       } catch (error) {
         document.getElementById('loginError').textContent = error.message;
       }
@@ -253,14 +274,40 @@ export class Auth {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
+          credentials: 'include'
         });
-        
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Registration failed');
+          throw new Error('Registration failed');
         }
-  
-        window.location.href = '/login';
+
+        const result = await response.json();
+        
+        if (result.csrfToken) {
+          localStorage.setItem('csrfToken', result.csrfToken);
+          let metaTag = document.querySelector('meta[name="csrf-token"]');
+          if (!metaTag) {
+            metaTag = document.createElement('meta');
+            metaTag.setAttribute('name', 'csrf-token');
+            document.head.appendChild(metaTag);
+          }
+          metaTag.setAttribute('content', result.csrfToken);
+        }
+        
+        if (result.user) {
+          if (!userStore.getUser(result.user.id)) {
+            userStore.addUser(result.user);
+          } else {
+            userStore.updateUser(result.user.id, result.user);
+          }
+          userStore.authenticateUser(result.user.id);
+        }
+        
+        if (window.router) {
+          window.router.navigateTo('/');
+        } else {
+          window.location.href = new URL('/', window.location.origin).href;
+        }
       } catch (error) {
         document.getElementById('registerError').textContent = error.message;
       }
@@ -268,17 +315,16 @@ export class Auth {
   }
 
   /**
-   * Logs out the currently authenticated user.
-   * On success, clears CSRF token storage and updates the userStore accordingly.
+   * Logs out the current user.
    */
   async logout() {
     try {
       // Get CSRF token from localStorage or meta tag
-      const csrfToken = localStorage.getItem('csrfToken') ||
-                        document.querySelector('meta[name="csrf-token"]')?.content;
+      const csrfToken = localStorage.getItem('csrfToken') || 
+                       document.querySelector('meta[name="csrf-token"]')?.content;
       
       if (!csrfToken) {
-        throw new Error('No CSRF token available');
+        console.warn('No CSRF token found for logout request');
       }
 
       const response = await fetch('/api/logout', {
@@ -286,7 +332,7 @@ export class Auth {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
+          'X-CSRF-Token': csrfToken || '' // Include token if available
         }
       });
 
@@ -294,12 +340,17 @@ export class Auth {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Logout failed');
       }
-
+      
       // Clear CSRF token and update userStore state
       localStorage.removeItem('csrfToken');
       document.querySelector('meta[name="csrf-token"]')?.remove();
       userStore.logout();
-      window.location.href = '/login';
+      
+      if (window.router) {
+        window.router.navigateTo('/login');
+      } else {
+        window.location.href = new URL('/login', window.location.origin).href;
+      }
     } catch (error) {
       console.error('Logout error:', error);
       alert('Failed to logout. Please try again.');
@@ -322,13 +373,30 @@ export function checkAuth() {
  * Initializes authentication-related UI.
  * Renders the appropriate form based on the current URL path.
  */
-export function initAuth() {
+export function initAuth(type = 'login') {
   const auth = new Auth();
-  const container = document.getElementById('app-container');
   
-  if (window.location.pathname === '/login') {
+  // Get the container - prefer mainContent if available
+  let container;
+  if (window.mainContent) {
+    container = window.mainContent;
+  } else {
+    container = document.querySelector('.main-content');
+    if (!container) {
+      console.error('Main content container not found');
+      return;
+    }
+  }
+  
+  // Show loading state if using mainContent
+  if (container.setContent) {
+    container.setContent('<div class="loading">Loading...</div>');
+  }
+  
+  // Render the appropriate form
+  if (type === 'login') {
     auth.renderLoginForm(container);
-  } else if (window.location.pathname === '/register') {
+  } else if (type === 'register') {
     auth.renderRegisterForm(container);
   }
 }
