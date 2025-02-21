@@ -17,6 +17,17 @@ export async function initPosts() {
     await loadPosts();
 }
 
+function debugCSRF(message, data) {
+    console.log(`[CSRF Debug] ${message}`, data);
+}
+
+function getCsrfToken() {
+    const token = localStorage.getItem('csrfToken') || 
+                 document.querySelector('meta[name="csrf-token"]')?.content;
+    debugCSRF('Retrieved CSRF token:', token);
+    return token;
+}
+
 async function loadPosts() {
     // Get container from the mainContent component
     const container = window.mainContent.getContainer();
@@ -187,36 +198,78 @@ function attachPostEventListeners() {
     document.querySelectorAll('[id="Like"], [id="DisLike"]').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.preventDefault();
+            debugCSRF('Vote button clicked', { buttonId: button.id });
+    
             const user = userStore.getCurrentUser();
             if (!user) {
                 showToast('Please log in to vote');
                 return;
             }
-
+    
             const postId = button.dataset.postId;
             const voteType = button.id.toLowerCase();
+            
+            // Get CSRF token
+            const csrfToken = getCsrfToken();
+            if (!csrfToken) {
+                debugCSRF('No CSRF token found, attempting to refresh auth status');
+                // If no token found, try to refresh auth status
+                const auth = new Auth();
+                await auth.checkAuthStatus();
+                // Try getting token again
+                const retryToken = getCsrfToken();
+                if (!retryToken) {
+                    showToast('Unable to verify your session. Please try logging in again.');
+                    return;
+                }
+            }
+    
+            debugCSRF('Sending vote request', {
+                postId,
+                voteType,
+                hasToken: !!csrfToken
+            });
             
             try {
                 const response = await fetch('/api/posts/vote', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken || '' // Include CSRF token in header
                     },
+                    credentials: 'include', // Important for CSRF
                     body: JSON.stringify({
-                        post_id: postId,
+                        post_id: parseInt(postId, 10),  
                         vote: voteType
                     })
                 });
+    
+                debugCSRF('Vote response received', {
+                    status: response.status,
+                    statusText: response.statusText
+                });
+    
                 if (response.ok) {
                     const data = await response.json();
+                    debugCSRF('Vote successful', data);
                     updateVoteCounts(postId, data.likes, data.dislikes);
                     toggleVoteButtonStates(postId, voteType);
                     userVotes[postId] = voteType;
                 } else {
                     const error = await response.json();
+                    debugCSRF('Vote failed', error);
                     showToast(error.message || 'Failed to vote');
+                    
+                    // If we get a 403, it might be a CSRF token issue
+                    if (response.status === 403) {
+                        debugCSRF('Possible CSRF token issue, refreshing auth status');
+                        const auth = new Auth();
+                        await auth.checkAuthStatus();
+                        showToast('Please try voting again');
+                    }
                 }
             } catch (error) {
+                debugCSRF('Vote request error', error);
                 console.error('Error:', error);
                 showToast('An error occurred while voting');
             }
