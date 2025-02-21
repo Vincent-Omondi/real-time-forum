@@ -7,13 +7,19 @@ let userVotes = {};
 let userCommentVotes = {};
 
 export async function initPosts() {
-    const container = document.querySelector('.posts-container');
+    // Get container from the mainContent component
+    const container = window.mainContent.getContainer();
+    if (!container) {
+        console.error('Posts container not found');
+        return;
+    }
     await initializeVoteStates();
     await loadPosts();
 }
 
 async function loadPosts() {
-    const container = document.querySelector('.posts-container');
+    // Get container from the mainContent component
+    const container = window.mainContent.getContainer();
     if (!container) {
         console.error('Posts container not found');
         return;
@@ -81,7 +87,7 @@ function createPostHTML(post) {
                         ` : ''}
                     </div>
                     <h3 class="post-title">
-                        <a href="/viewPost?id=${post.ID}">${post.Title || 'Untitled'}</a>
+                        <a href="/viewPost?id=${post.ID}" data-link>${post.Title || 'Untitled'}</a>
                     </h3>
                 </div>
             </div>
@@ -89,7 +95,7 @@ function createPostHTML(post) {
                 ${post.Content ? 
                     (post.Content.length > 300 
                         ? `${post.Content.slice(0, 300)}...
-                           <a href="/viewPost?id=${post.ID}" class="read-more">Read more</a>`
+                           <a href="/viewPost?id=${post.ID}" data-link class="read-more">Read more</a>`
                         : post.Content)
                     : 'No content'
                 }
@@ -112,7 +118,7 @@ function createPostHTML(post) {
                         <div class="counter" id="dislikes-container-${post.ID}">${post.Dislikes || 0}</div>
                     </div>
                     <div class="comments-count">
-                        <a href="/viewPost?id=${post.ID}#commentText">
+                        <a href="/viewPost?id=${post.ID}#commentText" data-link>
                             <i class="fa-regular fa-comment"></i>
                             <span class="counter" id="comments-count-${post.ID}">${post.CommentCount || 0}</span>
                         </a>
@@ -145,7 +151,7 @@ function attachPostEventListeners() {
         button.addEventListener('click', async (e) => {
             e.stopPropagation();
             const postId = e.target.closest('.edit-post-btn').dataset.postId;
-            window.location.href = `/editPost?id=${postId}`;
+            window.router.navigateTo(`/editPost?id=${postId}`);
         });
     });
 

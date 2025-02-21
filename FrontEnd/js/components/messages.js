@@ -7,7 +7,12 @@ export function initMessages() {
         return;
     }
 
-    const container = document.getElementById('app-container');
+    const container = document.querySelector('.main-content');
+    if (!container) {
+        console.error('Main content container not found');
+        return;
+    }
+    
     container.innerHTML = `
         <div class="messages-page">
             <div class="chat-list">

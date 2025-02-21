@@ -8,9 +8,11 @@ export class CreatePost {
 
   async render(container) {
     try {
-      // CSRF token and auth status are handled centrally,
-      // so we assume that if the user reaches this page, they're authenticated.
-      container.innerHTML = `
+      // Create a wrapper div for the create post content
+      const content = document.createElement('div');
+      content.className = 'create-post-wrapper';
+      
+      content.innerHTML = `
         <div class="post-editor-container">
           <div class="post-editor-header">
             <h2>Create a Post</h2>
@@ -86,9 +88,19 @@ export class CreatePost {
         </div>
       `;
 
+      // Set the content to the container
+      if (container instanceof HTMLElement) {
+        container.appendChild(content);
+      } else {
+        window.mainContent.setContent(content);
+      }
+
       this.attachEventListeners();
     } catch (error) {
       console.error('Error rendering create post component:', error);
+      if (window.mainContent) {
+        window.mainContent.setContent('<div class="error">Error loading create post form</div>');
+      }
     }
   }
 
@@ -117,8 +129,14 @@ export class CreatePost {
     // Form submission
     form.addEventListener('submit', this.handleSubmit.bind(this));
 
-    // Cancel button
-    cancelButton.addEventListener('click', () => window.location.href = '/');
+    // Cancel button - use router navigation
+    cancelButton.addEventListener('click', () => {
+      if (window.router) {
+        window.router.navigateTo('/');
+      } else {
+        window.location.href = '/';
+      }
+    });
   }
 
   switchTab(tab) {
@@ -235,8 +253,12 @@ export class CreatePost {
 
     try {
       const response = await postsAPI.create(formData);
-      // On success, redirect to home page
-      window.location.href = '/';
+      // On success, navigate to home page using router
+      if (window.router) {
+        window.router.navigateTo('/');
+      } else {
+        window.location.href = '/';
+      }
     } catch (error) {
       console.error('Post creation error:', error);
       this.showToast(error.message || 'Failed to create post. Please try again.');
