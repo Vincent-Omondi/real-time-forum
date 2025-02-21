@@ -21,7 +21,7 @@ export class Header {
                 </div>
             </div>
             <div class="nav-actions">
-                <a href="/create" class="button-post">
+                <a href="/create" data-link class="button-post">
                     <i class="fas fa-plus"></i>
                     <span class="button-text">New Post</span>
                 </a>
