@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -75,7 +76,13 @@ func (rl *RateLimiter) RateLimit(next http.Handler) http.Handler {
 
 		if v.Count > rl.Rate {
 			rl.Mu.Unlock()
-			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   "Rate limit exceeded",
+				"status":  "error",
+				"message": "Too many requests. Please try again later.",
+			})
 			return
 		}
 		rl.Mu.Unlock()

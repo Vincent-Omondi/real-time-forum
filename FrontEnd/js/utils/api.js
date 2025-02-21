@@ -45,21 +45,43 @@ function getCSRFToken() {
 async function apiRequest(endpoint, options = {}) {
     try {
         const csrfToken = getCSRFToken();
+        const defaultHeaders = {
+            'X-CSRF-Token': csrfToken
+        };
+
+        // Don't set Content-Type for FormData, let the browser set it with the boundary
+        if (!(options.body instanceof FormData)) {
+            defaultHeaders['Content-Type'] = 'application/json';
+        }
+
         const response = await fetch(endpoint, {
+            credentials: 'include', // Include cookies
             ...options,
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken,
+                ...defaultHeaders,
                 ...options.headers
             }
         });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'API request failed');
+        // Try to parse the response as JSON
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            data = await response.text();
         }
 
-        return await response.json();
+        // If the response wasn't successful, throw an error
+        if (!response.ok) {
+            throw new Error(
+                data.error || data.message || 
+                `Request failed with status ${response.status}`
+            );
+        }
+
+        // Return the parsed data
+        return data;
     } catch (error) {
         console.error('API Error:', error);
         throw error;
