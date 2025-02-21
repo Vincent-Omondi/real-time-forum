@@ -56,6 +56,26 @@ function requireAuth(componentKey) {
       window.location.href = '/login';
       return;
     }
+
+    // Update header profile UI after successful auth check
+    const profile = new Profile();
+    try {
+      const userResponse = await fetch('/api/user/profile', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        profile.updateHeaderProfileUI(userData);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+
     return components[componentKey]();
   };
 }
@@ -280,38 +300,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const container = document.createElement('div');
   container.className = 'container';
   
-  // Initialize and render header, sidebar, main content, and profile sections
+  // Initialize and render header, sidebar, main content
   const header = new Header();
   const sidebar = new Sidebar();
   const mainContent = new MainContent();
-  const profile = new Profile();
   
   root.appendChild(header.render());
   container.appendChild(sidebar.render());
   container.appendChild(mainContent.render());
   root.appendChild(container);
   
-  // Check authentication and update profile information
+  // Check authentication
   const isAuthenticated = await checkLoginStatus();
   authInitialized = true;
-  if (isAuthenticated) {
-    try {
-      const userResponse = await fetch('/api/user/profile', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        profile.updateHeaderProfileUI(userData);
-      }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-    }
-  }
   
   // Start the router, WebSocket, and theme initialization if the current path is public or user is authenticated.
   if (isAuthenticated || isPublicPath(window.location.pathname)) {
