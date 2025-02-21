@@ -35,8 +35,30 @@ export { updateUserSection, updateUIBasedOnAuth };
  */
 const routes = {
   '/': requireAuth('home'),
-  '/login': () => initAuth('login'),
-  '/register': () => initAuth('register'),
+  '/login': () => {
+    // If already authenticated, redirect to home
+    if (userStore.isAuthenticated()) {
+      if (window.router) {
+        window.router.navigateTo('/');
+      } else {
+        window.location.href = '/';
+      }
+      return;
+    }
+    return initAuth('login');
+  },
+  '/register': () => {
+    // If already authenticated, redirect to home
+    if (userStore.isAuthenticated()) {
+      if (window.router) {
+        window.router.navigateTo('/');
+      } else {
+        window.location.href = '/';
+      }
+      return;
+    }
+    return initAuth('register');
+  },
   '/create': requireAuth('createPost'),
   '/posts': requireAuth('posts'),
   '/viewPost': requireAuth('viewPost'),
@@ -53,7 +75,11 @@ function requireAuth(componentKey) {
   return async () => {
     const isLoggedIn = await checkLoginStatus();
     if (!isLoggedIn) {
-      window.location.href = '/login';
+      if (window.router) {
+        window.router.navigateTo('/login');
+      } else {
+        window.location.href = '/login';
+      }
       return;
     }
 
@@ -103,7 +129,11 @@ async function checkLoginStatus() {
 
       // If not logged in and not on a public page, redirect to login
       if (!isAuthenticated && !isPublicPath(window.location.pathname)) {
-        window.location.href = '/login';
+        if (window.router) {
+          window.router.navigateTo('/login');
+        } else {
+          window.location.href = '/login';
+        }
       } else if (isAuthenticated) {
         updateUserSection();
       }
@@ -127,8 +157,18 @@ async function checkLoginStatus() {
  * Calls the Profile component to handle logout (which, in turn, calls the logout logic in auth.js).
  */
 async function logoutUser() {
-  const profile = new Profile();
-  await profile.handleLogout();
+  try {
+    const auth = new Auth();
+    await auth.logout();
+  } catch (error) {
+    console.error('Logout failed:', error);
+    // If logout fails, try to redirect to login anyway
+    if (window.router) {
+      window.router.navigateTo('/login');
+    } else {
+      window.location.href = new URL('/login', window.location.origin).href;
+    }
+  }
 }
 
 /**
@@ -137,15 +177,12 @@ async function logoutUser() {
  */
 const components = {
   home: async () => {
-    const container = document.getElementById('app-container');
-    if (!container) {
-      console.error('App container not found');
-      return;
-    }
-    // Ensure a posts container is present
-    if (!container.querySelector('.posts-container')) {
-      container.innerHTML = `<div class="posts-container"></div>`;
-    }
+    // Create content with posts container
+    const content = document.createElement('div');
+    content.innerHTML = '<div class="posts-container"></div>';
+    
+    // Set the content first to ensure container is initialized
+    window.mainContent.setContent(content);
 
     try {
       // Update header/profile info
@@ -162,92 +199,92 @@ const components = {
         const profile = new Profile();
         profile.updateHeaderProfileUI(userData);
       }
-      // Load posts
+      
+      // Now that container is initialized, load posts
       await initPosts();
-
-      // Verify the profile section exists; if not, try refreshing it.
-      const userSection = document.getElementById('userSection');
-      if (!userSection || !userSection.querySelector('.profile-section')) {
-        const retryResponse = await fetch('/api/user/profile', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        if (retryResponse.ok) {
-          const userData = await retryResponse.json();
-          const profile = new Profile();
-          profile.updateHeaderProfileUI(userData);
-        }
-      }
     } catch (error) {
       console.error('Error in home component:', error);
-      container.innerHTML = '<div class="error-message">Error loading content</div>';
+      window.mainContent.setContent('<div class="error-message">Error loading content</div>');
     }
   },
   profile: async () => {
     const profile = new Profile();
-    await profile.render();
+    const content = await profile.render();
+    window.mainContent.setContent(content);
   },
   viewPost: async () => {
-    const container = document.getElementById('app-container');
     const urlParams = new URLSearchParams(window.location.search);
     const postId = urlParams.get('id');
     if (!postId) {
-      container.innerHTML = '<div class="error">Post not found</div>';
+      window.mainContent.setContent('<div class="error">Post not found</div>');
       return;
     }
     const ViewPost = (await import('./components/viewPost.js')).default;
     const viewPostComponent = new ViewPost();
-    container.innerHTML = await viewPostComponent.getHtml();
+    const content = await viewPostComponent.getHtml();
+    window.mainContent.setContent(content);
     await viewPostComponent.afterRender();
   },
   createPost: async () => {
-    const container = document.getElementById('app-container');
     const createPost = new CreatePost();
-    await createPost.render(container);
+    const content = document.createElement('div');
+    await createPost.render(content);
+    window.mainContent.setContent(content);
   },
   posts: async () => {
-    const container = document.getElementById('app-container');
-    container.innerHTML = `<div class="posts-container"></div>`;
+    const content = document.createElement('div');
+    content.innerHTML = '<div class="posts-container"></div>';
+    window.mainContent.setContent(content);
     await initPosts();
   }
 };
 
 // Router implementation: handles navigation events, popstate, and link clicks.
 class Router {
-  constructor(routes) {
+  constructor(routes, mainContent) {
     this.routes = routes;
+    this.mainContentComponent = mainContent;
     this.init();
   }
 
   init() {
+    // Handle initial route
     this.handleRoute();
+    
+    // Handle browser back/forward buttons
     window.addEventListener('popstate', () => this.handleRoute());
+    
+    // Handle link clicks
     document.addEventListener('click', (e) => {
-      if (e.target.matches('[data-link]')) {
+      const link = e.target.closest('[data-link]');
+      if (link) {
         e.preventDefault();
-        this.navigateTo(e.target.href);
+        this.navigateTo(link.href);
       }
+    });
+
+    // Handle direct navigation
+    window.addEventListener('DOMContentLoaded', (e) => {
+      e.preventDefault();
+      this.handleRoute();
     });
   }
 
   async handleRoute() {
-    const path = window.location.pathname;
+    const url = new URL(window.location.href);
+    const path = url.pathname;
+    
     try {
-      // For protected routes, if auth is not yet initialized, show a loading indicator and check auth
+      // For protected routes, if auth is not yet initialized, check auth
       if (!authInitialized && !isPublicPath(path)) {
-        document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
         await checkLoginStatus();
       }
 
       let componentFunction = this.routes[path];
       if (!componentFunction) {
-        // If no exact match, try matching a route prefix.
+        // If no exact match, try matching a route prefix
         for (const [route, handler] of Object.entries(this.routes)) {
-          if (path.startsWith(route)) {
+          if (path.startsWith(route) && route !== '/') {
             componentFunction = handler;
             break;
           }
@@ -255,20 +292,49 @@ class Router {
       }
 
       if (componentFunction) {
-        document.getElementById('app-container').innerHTML = '<div class="loading">Loading...</div>';
-        await componentFunction();
+        // Show loading state
+        this.mainContentComponent.setContent('<div class="loading">Loading...</div>');
+
+        try {
+          await componentFunction();
+          // Handle hash fragment after content is loaded
+          if (url.hash) {
+            const element = document.querySelector(url.hash);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        } catch (error) {
+          console.error('Error rendering component:', error);
+          this.mainContentComponent.setContent('<div class="error">Error loading content</div>');
+        }
       } else {
-        document.getElementById('app-container').innerHTML = '<h1>Page Not Found</h1>';
+        this.mainContentComponent.setContent('<div class="error">Page not found</div>');
       }
     } catch (error) {
-      console.error('Failed to load route:', error);
-      document.getElementById('app-container').innerHTML = '<div class="error">Failed to load content</div>';
+      console.error('Route handling failed:', error);
+      this.mainContentComponent.setContent('<div class="error">Page failed to load</div>');
     }
   }
 
   navigateTo(url) {
-    window.history.pushState(null, null, url);
-    this.handleRoute();
+    let newUrl;
+    try {
+      // If url is a relative path starting with '/', construct full URL
+      if (url.startsWith('/')) {
+        newUrl = new URL(url, window.location.origin);
+      } else {
+        newUrl = new URL(url);
+      }
+      
+      // Only update history and handle route if it's a different path
+      if (newUrl.pathname !== window.location.pathname) {
+        history.pushState(null, '', newUrl.href);
+        this.handleRoute();
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   }
 }
 
@@ -305,6 +371,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sidebar = new Sidebar();
   const mainContent = new MainContent();
   
+  // Make mainContent globally accessible
+  window.mainContent = mainContent;
+  
   root.appendChild(header.render());
   container.appendChild(sidebar.render());
   container.appendChild(mainContent.render());
@@ -316,11 +385,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Start the router, WebSocket, and theme initialization if the current path is public or user is authenticated.
   if (isAuthenticated || isPublicPath(window.location.pathname)) {
-    const router = new Router(routes);
+    window.router = new Router(routes, mainContent); // Pass mainContent to Router
     const ws = initWebSocket();
     initTheme();
     window.forumWS = ws;
-    await router.handleRoute();
   } else {
     window.location.href = '/login';
   }
