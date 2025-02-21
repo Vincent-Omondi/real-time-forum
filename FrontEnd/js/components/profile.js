@@ -137,7 +137,7 @@ export class Profile {
           <i class="fas fa-chevron-down"></i>
         </div>
         <div class="profile-dropdown">
-          <a href="/profile" class="dropdown-item">
+          <a data-link href="/profile" class="dropdown-item">
             <i class="fas fa-user"></i> My Profile
           </a>
           <button class="dropdown-item" id="logoutButton">
@@ -183,6 +183,11 @@ export class Profile {
   async handleLogout() {
     try {
       await logout();
+      if (window.router) {
+        window.router.navigateTo('/login');
+      } else {
+        window.location.href = '/login';
+      }
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -237,9 +242,9 @@ export class Profile {
     }
 
     const content = data.map(item => {
-      const { title, content, created_at, likes } = item;
+      const { title, content, created_at, likes, id } = item;
       return `
-        <div class="activity-item">
+        <div class="activity-item" data-link href="/viewPost?id=${id}">
           <h4>${this.escapeHtml(title)}</h4>
           <p>${this.escapeHtml(content.substring(0, 100))}${content.length > 100 ? '...' : ''}</p>
           <div class="activity-meta">
