@@ -1,9 +1,15 @@
 import userStore from '../store/userStore.js';
 import { formatTimestamp } from '../utils/time.js';
+import { 
+    initializeVoteStates, 
+    handleVote, 
+    getUserVotes,
+    updateVoteCounts,
+    toggleVoteButtonStates 
+} from '../utils/voteUtils.js';
 
-// Vote management
-let userVotes = {};
-let userCommentVotes = {};
+// Get vote states from the utility
+const { userVotes, userCommentVotes } = getUserVotes();
 
 export default class ViewPost {
   constructor() {
@@ -247,6 +253,8 @@ export default class ViewPost {
       element.textContent = formatTimestamp(timestamp);
     });
 
+    // Initialize vote states
+    await initializeVoteStates();
     this.attachEventListeners();
   }
 
@@ -303,21 +311,23 @@ export default class ViewPost {
       });
     }
 
-    // Post vote buttons
+    // Post voting
     document.querySelectorAll('[id="Like"], [id="DisLike"]').forEach(button => {
-      button.addEventListener('click', (e) => {
-        const postId = e.target.dataset.postId;
-        const voteType = e.target.id.toLowerCase();
-        this.handlePostVote(postId, voteType);
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const postId = button.dataset.postid;
+        const voteType = button.id.toLowerCase();
+        await handleVote(postId, voteType, userStore, this.showToast.bind(this));
       });
     });
 
-    // Comment vote buttons
+    // Comment voting
     document.querySelectorAll('.comment-vote').forEach(button => {
-      button.addEventListener('click', (e) => {
-        const commentId = e.target.dataset.commentId;
-        const voteType = e.target.dataset.vote === 'up' ? 'like' : 'dislike';
-        this.handleCommentVote(commentId, voteType);
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const commentId = button.dataset.commentId;
+        const voteType = button.dataset.vote === 'up' ? 'like' : 'dislike';
+        await this.handleCommentVote(commentId, voteType);
       });
     });
 
@@ -470,55 +480,6 @@ export default class ViewPost {
     }
   }
 
-  async handlePostVote(postId, type) {
-    if (!this.user) {
-      this.showToast('Please log in to vote');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/posts/vote', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          post_id: postId,
-          vote_type: type
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to vote');
-      }
-
-      const data = await response.json();
-      this.updatePostVoteCounts(postId, data.likes, data.dislikes);
-      this.togglePostVoteButtonStates(postId, type);
-    } catch (error) {
-      console.error('Error voting on post:', error);
-      this.showToast('Failed to vote on post');
-    }
-  }
-
-  updatePostVoteCounts(postId, likes, dislikes) {
-    const likesElement = document.getElementById(`likes-container-${postId}`);
-    const dislikesElement = document.getElementById(`dislikes-container-${postId}`);
-
-    if (likesElement) likesElement.textContent = likes;
-    if (dislikesElement) dislikesElement.textContent = dislikes;
-  }
-
-  togglePostVoteButtonStates(postId, activeType) {
-    const likeButton = document.querySelector(`[id="Like"][data-postId="${postId}"]`);
-    const dislikeButton = document.querySelector(`[id="DisLike"][data-postId="${postId}"]`);
-
-    if (likeButton && dislikeButton) {
-      likeButton.classList.toggle('active', activeType === 'like');
-      dislikeButton.classList.toggle('active', activeType === 'dislike');
-    }
-  }
-
   showEditCommentForm(commentId) {
     const contentElement = document.getElementById(`comment-content-${commentId}`);
     const currentContent = contentElement.textContent.trim();
@@ -591,8 +552,8 @@ export default class ViewPost {
 
   showToast(message) {
     const toast = document.getElementById('toast');
-    const toastMessage = document.getElementById('toastMessage');
-    if (toast && toastMessage) {
+    if (toast) {
+      const toastMessage = document.getElementById('toastMessage');
       toastMessage.textContent = message;
       toast.classList.add('show');
       setTimeout(() => {
