@@ -180,27 +180,30 @@ export default class ViewPost {
   }
 
   renderComments(comments, parentId = null, depth = 0) {
-    console.log('Rendering comments with parentId:', parentId);
-    console.log('All comments:', comments);
-    
-    // Adjust filter to handle SQL.NullInt64 structure
+    // Filter comments based on parentId
     const filteredComments = comments.filter(comment => {
         if (parentId === null) {
             // For top-level comments, ParentID should be null/undefined or ParentID.Valid should be false
             return !comment.ParentID || !comment.ParentID.Valid;
         } else {
             // For replies, ParentID.Valid should be true and ParentID.Int64 should match parent
-            return comment.ParentID && comment.ParentID.Valid && comment.ParentID.Int64 === parentId;
+            return comment.ParentID && 
+                   comment.ParentID.Valid && 
+                   parseInt(comment.ParentID.Int64) === parseInt(parentId);
         }
     });
-
-    console.log('Filtered comments:', filteredComments);
 
     if (filteredComments.length === 0) return '';
 
     return filteredComments.map(comment => {
-        console.log('Rendering comment:', comment);
         const isAuthor = this.user && this.user.id === comment.UserID;
+        
+        // Find replies for this comment
+        const replies = comments.filter(reply => 
+            reply.ParentID && 
+            reply.ParentID.Valid && 
+            parseInt(reply.ParentID.Int64) === parseInt(comment.ID)
+        );
 
         return `
             <div class="comment depth-${depth}" data-comment-id="${comment.ID}">
@@ -228,7 +231,9 @@ export default class ViewPost {
                         ` : ''}
                     </div>
                 </div>
-                <div class="comment-content" id="comment-content-${comment.ID}">${comment.Content}</div>
+                <div class="comment-content" id="comment-content-${comment.ID}">
+                    ${comment.Content}
+                </div>
                 <div class="comment-footer">
                     <div class="vote-buttons">
                         <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'like' ? 'active' : ''}" data-vote="up" data-comment-id="${comment.ID}">
@@ -247,17 +252,21 @@ export default class ViewPost {
                     ` : ''}
                 </div>
 
-                <div class="reply-input-container" id="reply-form-${comment.ID}" style="display: none;">
-                    <textarea class="reply-input" id="replyText-${comment.ID}" placeholder="Write a reply..."></textarea>
-                    <div class="reply-buttons">
-                        <button class="button button-primary" data-comment-id="${comment.ID}" data-post-id="${this.post.ID}">Submit</button>
-                        <button class="button button-secondary" data-comment-id="${comment.ID}">Cancel</button>
+                ${replies.length > 0 ? `
+                    <div class="nested-comments">
+                        ${this.renderComments(comments, comment.ID, depth + 1)}
                     </div>
-                </div>
+                ` : ''}
 
-                <div class="nested-comments">
-                    ${this.renderComments(comments, comment.ID, depth + 1)}
-                </div>
+                ${this.user && depth < 5 ? `
+                    <div class="reply-input-container" id="reply-form-${comment.ID}" style="display: none;">
+                        <textarea class="reply-input" id="replyText-${comment.ID}" placeholder="Write a reply..."></textarea>
+                        <div class="reply-buttons">
+                            <button class="button button-primary" data-comment-id="${comment.ID}" data-post-id="${this.post.ID}">Submit</button>
+                            <button class="button button-secondary" data-comment-id="${comment.ID}">Cancel</button>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }).join('');
@@ -485,71 +494,75 @@ export default class ViewPost {
     const content = textarea.value.trim();
 
     if (!content) {
-      this.showToast('Reply cannot be empty');
-      return;
+        this.showToast('Reply cannot be empty');
+        return;
     }
 
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      console.log('Submitting reply with CSRF token:', csrfToken); // Debug log
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        console.log('Submitting reply with CSRF token:', csrfToken);
 
-      const response = await fetch(`/api/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({
-          content: content,
-          parentId: commentId
-        })
-      });
+        // Log the request payload for debugging
+        const payload = {
+            content: content,
+            parentID: parseInt(commentId)  // Changed from parentId to parentID to match backend
+        };
+        console.log('Submitting reply payload:', payload);
 
-      if (!response.ok) {
-        throw new Error('Failed to submit reply');
-      }
+        const response = await fetch(`/api/posts/${postId}/comments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
 
-      const result = await response.json();
-      console.log('Reply submission response:', result); // Debug log
+        const result = await response.json();
+        console.log('Reply submission response:', result);
 
-      if (result.status === 'success') {
-        textarea.value = '';
-        // Hide the reply form
-        document.getElementById(`reply-form-${commentId}`).style.display = 'none';
-        
-        // Fetch updated comments
-        const commentsResponse = await fetch(`/api/posts/${postId}`);
-        if (!commentsResponse.ok) {
-          throw new Error('Failed to fetch updated comments');
+        if (!response.ok) {
+            throw new Error(result.error || result.message || 'Failed to submit reply');
         }
 
-        const data = await commentsResponse.json();
-        if (data.status === 'success' && data.data.comments) {
-          // Update comments in the current instance
-          this.comments = data.data.comments;
-          
-          // Update the comments container
-          const commentsContainer = document.querySelector('.comments-container');
-          commentsContainer.innerHTML = this.renderComments(this.comments);
-          
-          // Update comment count
-          const commentCount = document.querySelector(`#comments-count-${postId}`);
-          if (commentCount) {
-            commentCount.textContent = this.comments.length;
-          }
+        if (result.status === 'success') {
+            textarea.value = '';
+            // Hide the reply form
+            document.getElementById(`reply-form-${commentId}`).style.display = 'none';
+            
+            // Fetch updated comments
+            const commentsResponse = await fetch(`/api/posts/${postId}`);
+            if (!commentsResponse.ok) {
+                throw new Error('Failed to fetch updated comments');
+            }
 
-          // Reattach event listeners
-          this.attachEventListeners();
-          
-          // Show success message
-          this.showToast('Reply posted successfully');
+            const data = await commentsResponse.json();
+            if (data.status === 'success' && data.data.comments) {
+                // Update comments in the current instance
+                this.comments = data.data.comments;
+                
+                // Update the comments container
+                const commentsContainer = document.querySelector('.comments-container');
+                commentsContainer.innerHTML = this.renderComments(this.comments);
+                
+                // Update comment count
+                const commentCount = document.querySelector(`#comments-count-${postId}`);
+                if (commentCount) {
+                    commentCount.textContent = this.comments.length;
+                }
+
+                // Reattach event listeners
+                this.attachEventListeners();
+                
+                // Show success message
+                this.showToast('Reply posted successfully');
+            }
+        } else {
+            throw new Error(result.error || 'Failed to submit reply');
         }
-      } else {
-        throw new Error(result.error || 'Failed to submit reply');
-      }
     } catch (error) {
-      console.error('Error submitting reply:', error);
-      this.showToast('Failed to submit reply');
+        console.error('Error submitting reply:', error);
+        this.showToast(error.message || 'Failed to submit reply');
     }
   }
 
