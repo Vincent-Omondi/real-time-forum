@@ -1,5 +1,4 @@
 import userStore from '../store/userStore.js';
-import { initComments } from './comments.js';
 import { postsAPI } from '../utils/api.js';
 import { 
     initializeVoteStates, 
@@ -16,21 +15,15 @@ export async function initPosts() {
     // Get container from the mainContent component
     const container = window.mainContent.getContainer();
     if (!container) {
-        console.error('Posts container not found');
         return;
     }
     await initializeVoteStates();
     await loadPosts();
 }
 
-function debugCSRF(message, data) {
-    console.log(`[CSRF Debug] ${message}`, data);
-}
-
 function getCsrfToken() {
     const token = localStorage.getItem('csrfToken') || 
                  document.querySelector('meta[name="csrf-token"]')?.content;
-    debugCSRF('Retrieved CSRF token:', token);
     return token;
 }
 
@@ -38,7 +31,6 @@ async function loadPosts() {
     // Get container from the mainContent component
     const container = window.mainContent.getContainer();
     if (!container) {
-        console.error('Posts container not found');
         return;
     }
 
@@ -53,7 +45,6 @@ async function loadPosts() {
             container.innerHTML = '<p class="no-posts-message">No posts available</p>';
         }
     } catch (error) {
-        console.error('Error loading posts:', error);
         container.innerHTML = '<p class="error-message">Error loading posts</p>';
     }
 }
@@ -193,7 +184,6 @@ function attachPostEventListeners() {
                         showToast(error.message || 'Failed to delete post');
                     }
                 } catch (error) {
-                    console.error('Error deleting post:', error);
                     showToast('An error occurred while deleting the post');
                 }
             }
