@@ -16,7 +16,8 @@ func CommentRoute(db *sql.DB) {
 	// Rate limit for comments
 	commentLimiter := middleware.NewRateLimiter(10, time.Minute) // 10 comments per minute
 
-	http.Handle("/comment/", middleware.ApplyMiddleware(
+	// Handle POST /api/posts/{postId}/comments
+	http.Handle("/api/posts/", middleware.ApplyMiddleware(
 		handlers.CommentHandler(commentController),
 		middleware.SetCSPHeaders,
 		middleware.AuthMiddleware,
@@ -26,7 +27,8 @@ func CommentRoute(db *sql.DB) {
 		middleware.VerifyCSRFMiddleware(db),
 	))
 
-	http.Handle("/deleteComment", middleware.ApplyMiddleware(
+	// Handle DELETE /api/comments/{commentId}
+	http.Handle("/api/comments/", middleware.ApplyMiddleware(
 		handlers.DeleteCommentHandler(commentController),
 		middleware.SetCSPHeaders,
 		middleware.AuthMiddleware,
@@ -36,7 +38,8 @@ func CommentRoute(db *sql.DB) {
 		middleware.VerifyCSRFMiddleware(db),
 	))
 
-	http.Handle("/updateComment", middleware.ApplyMiddleware(
+	// Handle PUT /api/comments/{commentId}
+	http.Handle("/api/comments/", middleware.ApplyMiddleware(
 		handlers.UpdateCommentHandler(commentController),
 		middleware.SetCSPHeaders,
 		middleware.AuthMiddleware,
