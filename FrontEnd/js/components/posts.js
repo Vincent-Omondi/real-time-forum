@@ -137,7 +137,7 @@ function createPostHTML(post) {
                     <div class="comments-count">
                         <a href="/viewPost?id=${post.ID}#commentText" data-link>
                             <i class="fa-regular fa-comment"></i>
-                            <span class="counter" id="comments-count-${post.ID}">${post.CommentCount || 0}</span>
+                            <span class="counter" id="comments-count-${post.ID}">${(post.Comments || []).length}</span>
                         </a>
                     </div>
                 </div>
