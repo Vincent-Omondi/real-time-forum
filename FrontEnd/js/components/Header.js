@@ -12,7 +12,7 @@ export class Header {
                     <span>Forum</span>
                 </div>
             </a>
-            <div class="hamburger-menu" onclick="toggleSidebar()">
+            <div class="hamburger-menu">
                 <i class="fas fa-bars"></i>
             </div>
             <div class="search-bar-container">
