@@ -159,7 +159,7 @@ export default class ViewPost {
                 <div class="comment-input-container">
                   <div class="textarea-container">
                     <textarea class="main-comment-input" placeholder="Write a comment..." id="commentText"></textarea>
-                    <button class="button button-primary comment-button" data-post-id="${this.post.ID}">Comment</button>
+                    <button class="comment-button" data-post-id="${this.post.ID}">Comment</button>
                   </div>
                 </div>
               ` : `
@@ -180,70 +180,87 @@ export default class ViewPost {
   }
 
   renderComments(comments, parentId = null, depth = 0) {
-    const filteredComments = comments.filter(comment =>
-      parentId === null ? !comment.ParentID : comment.ParentID === parentId
-    );
+    console.log('Rendering comments with parentId:', parentId);
+    console.log('All comments:', comments);
+    
+    // Adjust filter to handle SQL.NullInt64 structure
+    const filteredComments = comments.filter(comment => {
+        if (parentId === null) {
+            // For top-level comments, ParentID should be null/undefined or ParentID.Valid should be false
+            return !comment.ParentID || !comment.ParentID.Valid;
+        } else {
+            // For replies, ParentID.Valid should be true and ParentID.Int64 should match parent
+            return comment.ParentID && comment.ParentID.Valid && comment.ParentID.Int64 === parentId;
+        }
+    });
+
+    console.log('Filtered comments:', filteredComments);
 
     if (filteredComments.length === 0) return '';
 
-    return filteredComments.map(comment => `
-      <div class="comment depth-${depth}" data-comment-id="${comment.ID}">
-        <div class="comment-header">
-          <div class="post-author-info">
-            <div class="author-initial">${comment.Author.charAt(0)}</div>
-            <span class="comment-author">${comment.Author}</span>
-          </div>
-          <div class="comment-meta">
-            <span class="timestamp" data-timestamp="${comment.Timestamp}"></span>
-            ${this.user && this.user.id === comment.UserID ? `
-              <div class="comment-options">
-                <button class="options-btn">
-                  <i class="fa-solid fa-ellipsis"></i>
-                </button>
-                <div class="options-menu">
-                  <button class="option-item" id="edit-comment-${comment.ID}">
-                    <i class="fa-solid fa-edit"></i> Edit
-                  </button>
-                  <button class="option-item" id="delete-comment-${comment.ID}">
-                    <i class="fa-solid fa-trash"></i> Delete
-                  </button>
+    return filteredComments.map(comment => {
+        console.log('Rendering comment:', comment);
+        const isAuthor = this.user && this.user.id === comment.UserID;
+
+        return `
+            <div class="comment depth-${depth}" data-comment-id="${comment.ID}">
+                <div class="comment-header">
+                    <div class="post-author-info">
+                        <div class="author-initial">${comment.Author.charAt(0)}</div>
+                        <span class="comment-author">${comment.Author}</span>
+                    </div>
+                    <div class="comment-meta">
+                        <span class="timestamp" data-timestamp="${comment.Timestamp}"></span>
+                        ${isAuthor ? `
+                            <div class="comment-options">
+                                <button class="options-btn">
+                                    <i class="fa-solid fa-ellipsis"></i>
+                                </button>
+                                <div class="options-menu">
+                                    <button class="option-item" id="edit-comment-${comment.ID}">
+                                        <i class="fa-solid fa-edit"></i> Edit
+                                    </button>
+                                    <button class="option-item" id="delete-comment-${comment.ID}">
+                                        <i class="fa-solid fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-        <div class="comment-content" id="comment-content-${comment.ID}">${comment.Content}</div>
-        <div class="comment-footer">
-          <div class="vote-buttons">
-            <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'like' ? 'active' : ''}" data-vote="up" data-comment-id="${comment.ID}">
-              <i class="fa-regular fa-thumbs-up"></i>
-            </button>
-            <div class="counter" id="comment-likes-${comment.ID}">${comment.Likes || 0}</div>
-            <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'dislike' ? 'dactive' : ''}" data-vote="down" data-comment-id="${comment.ID}">
-              <i class="fa-regular fa-thumbs-down"></i>
-            </button>
-            <div class="counter" id="comment-dislikes-${comment.ID}">${comment.Dislikes || 0}</div>
-          </div>
-          ${this.user && depth < 5 ? `
-            <div class="comment-actions">
-              <button class="reply-button" data-comment-id="${comment.ID}">Reply</button>
+                <div class="comment-content" id="comment-content-${comment.ID}">${comment.Content}</div>
+                <div class="comment-footer">
+                    <div class="vote-buttons">
+                        <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'like' ? 'active' : ''}" data-vote="up" data-comment-id="${comment.ID}">
+                            <i class="fa-regular fa-thumbs-up"></i>
+                        </button>
+                        <div class="counter" id="comment-likes-${comment.ID}">${comment.Likes || 0}</div>
+                        <button class="vote-button comment-vote ${userCommentVotes[comment.ID] === 'dislike' ? 'dactive' : ''}" data-vote="down" data-comment-id="${comment.ID}">
+                            <i class="fa-regular fa-thumbs-down"></i>
+                        </button>
+                        <div class="counter" id="comment-dislikes-${comment.ID}">${comment.Dislikes || 0}</div>
+                    </div>
+                    ${this.user && depth < 5 ? `
+                        <div class="comment-actions">
+                            <button class="reply-button" data-comment-id="${comment.ID}">Reply</button>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="reply-input-container" id="reply-form-${comment.ID}" style="display: none;">
+                    <textarea class="reply-input" id="replyText-${comment.ID}" placeholder="Write a reply..."></textarea>
+                    <div class="reply-buttons">
+                        <button class="button button-primary" data-comment-id="${comment.ID}" data-post-id="${this.post.ID}">Submit</button>
+                        <button class="button button-secondary" data-comment-id="${comment.ID}">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="nested-comments">
+                    ${this.renderComments(comments, comment.ID, depth + 1)}
+                </div>
             </div>
-          ` : ''}
-        </div>
-
-        <div class="reply-input-container" id="reply-form-${comment.ID}" style="display: none;">
-          <textarea class="reply-input" id="replyText-${comment.ID}" placeholder="Write a reply..."></textarea>
-          <div class="reply-buttons">
-            <button class="button button-primary" data-comment-id="${comment.ID}" data-post-id="${this.post.ID}">Submit</button>
-            <button class="button button-secondary" data-comment-id="${comment.ID}">Cancel</button>
-          </div>
-        </div>
-
-        <div class="nested-comments">
-          ${this.renderComments(comments, comment.ID, depth + 1)}
-        </div>
-      </div>
-    `).join('');
+        `;
+    }).join('');
   }
 
   async afterRender() {
@@ -262,10 +279,39 @@ export default class ViewPost {
     if (this.user) {
       // Comment submission event
       const commentButton = document.querySelector('.comment-button');
-      if (commentButton) {
-        commentButton.addEventListener('click', () => {
-          const postId = commentButton.dataset.postId;
-          this.submitComment(postId);
+      const commentTextarea = document.getElementById('commentText');
+      
+      if (commentButton && commentTextarea) {
+        // Enable/disable button based on textarea content
+        const updateButtonState = () => {
+          const hasContent = !!commentTextarea.value.trim();
+          commentButton.disabled = !hasContent;
+          commentButton.classList.toggle('active', hasContent);
+        };
+
+        // Initial button state
+        updateButtonState();
+
+        // Update button state when textarea content changes
+        commentTextarea.addEventListener('input', updateButtonState);
+
+        // Handle button click
+        commentButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (commentTextarea.value.trim()) {
+            const postId = commentButton.getAttribute('data-post-id');
+            console.log('Submitting comment for post:', postId); // Debug log
+            this.submitComment(postId);
+          }
+        });
+
+        // Handle Enter key (Ctrl/Cmd + Enter to submit)
+        commentTextarea.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && commentTextarea.value.trim()) {
+            e.preventDefault();
+            const postId = document.querySelector('.comment-button').getAttribute('data-post-id');
+            this.submitComment(postId);
+          }
         });
       }
 
@@ -353,28 +399,64 @@ export default class ViewPost {
     const content = textarea.value.trim();
 
     if (!content) {
-      this.showToast('Please enter a comment');
+      this.showToast('Comment cannot be empty');
       return;
     }
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      console.log('Submitting comment with CSRF token:', csrfToken); // Debug log
+
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
-        body: JSON.stringify({ content })
+        body: JSON.stringify({
+          content: content
+        })
       });
 
       if (!response.ok) {
         throw new Error('Failed to submit comment');
       }
 
-      // Refresh the page view using router
-      if (window.router) {
-        window.router.navigateTo(`/viewPost?id=${postId}`);
+      const result = await response.json();
+      console.log('Comment submission response:', result); // Debug log
+
+      if (result.status === 'success') {
+        textarea.value = '';
+        
+        // Fetch updated comments
+        const commentsResponse = await fetch(`/api/posts/${postId}`);
+        if (!commentsResponse.ok) {
+          throw new Error('Failed to fetch updated comments');
+        }
+
+        const data = await commentsResponse.json();
+        if (data.status === 'success' && data.data.comments) {
+          // Update comments in the current instance
+          this.comments = data.data.comments;
+          
+          // Update the comments container
+          const commentsContainer = document.querySelector('.comments-container');
+          commentsContainer.innerHTML = this.renderComments(this.comments);
+          
+          // Update comment count
+          const commentCount = document.querySelector(`#comments-count-${postId}`);
+          if (commentCount) {
+            commentCount.textContent = this.comments.length;
+          }
+
+          // Reattach event listeners
+          this.attachEventListeners();
+          
+          // Show success message
+          this.showToast('Comment posted successfully');
+        }
       } else {
-        window.location.reload();
+        throw new Error(result.error || 'Failed to submit comment');
       }
     } catch (error) {
       console.error('Error submitting comment:', error);
@@ -403,19 +485,23 @@ export default class ViewPost {
     const content = textarea.value.trim();
 
     if (!content) {
-      this.showToast('Please enter a reply');
+      this.showToast('Reply cannot be empty');
       return;
     }
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      console.log('Submitting reply with CSRF token:', csrfToken); // Debug log
+
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({
-          content,
-          parent_id: commentId
+          content: content,
+          parentId: commentId
         })
       });
 
@@ -423,8 +509,44 @@ export default class ViewPost {
         throw new Error('Failed to submit reply');
       }
 
-      // Refresh the page view after reply submission
-      window.location.reload();
+      const result = await response.json();
+      console.log('Reply submission response:', result); // Debug log
+
+      if (result.status === 'success') {
+        textarea.value = '';
+        // Hide the reply form
+        document.getElementById(`reply-form-${commentId}`).style.display = 'none';
+        
+        // Fetch updated comments
+        const commentsResponse = await fetch(`/api/posts/${postId}`);
+        if (!commentsResponse.ok) {
+          throw new Error('Failed to fetch updated comments');
+        }
+
+        const data = await commentsResponse.json();
+        if (data.status === 'success' && data.data.comments) {
+          // Update comments in the current instance
+          this.comments = data.data.comments;
+          
+          // Update the comments container
+          const commentsContainer = document.querySelector('.comments-container');
+          commentsContainer.innerHTML = this.renderComments(this.comments);
+          
+          // Update comment count
+          const commentCount = document.querySelector(`#comments-count-${postId}`);
+          if (commentCount) {
+            commentCount.textContent = this.comments.length;
+          }
+
+          // Reattach event listeners
+          this.attachEventListeners();
+          
+          // Show success message
+          this.showToast('Reply posted successfully');
+        }
+      } else {
+        throw new Error(result.error || 'Failed to submit reply');
+      }
     } catch (error) {
       console.error('Error submitting reply:', error);
       this.showToast('Failed to submit reply');
@@ -438,10 +560,12 @@ export default class ViewPost {
     }
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const response = await fetch('/api/comments/vote', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({
           comment_id: commentId,
@@ -503,10 +627,12 @@ export default class ViewPost {
     }
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const response = await fetch(`/api/comments/${commentId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({ content })
       });
