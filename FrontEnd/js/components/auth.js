@@ -1,5 +1,7 @@
 import userStore from '../store/userStore.js';
 import { updateUIBasedOnAuth } from '../utils/uiUtils.js';
+import { initializeVoteStates, clearVoteStates } from '../utils/voteUtils.js';
+import voteStore from '../store/voteStore.js';
 
 /**
  * Auth component for handling authentication.
@@ -250,6 +252,9 @@ export class Auth {
         } else {
           window.location.href = new URL('/', window.location.origin).href;
         }
+
+        // Initialize vote states after successful login
+        await initializeVoteStates();
       } catch (error) {
         document.getElementById('loginError').textContent = error.message;
       }
@@ -345,6 +350,7 @@ export class Auth {
       localStorage.removeItem('csrfToken');
       document.querySelector('meta[name="csrf-token"]')?.remove();
       userStore.logout();
+      voteStore.clearVotes();
       
       if (window.router) {
         window.router.navigateTo('/login');
