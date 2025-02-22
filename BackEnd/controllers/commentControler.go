@@ -74,127 +74,57 @@ func (cc *CommentController) GetCommentsByPostID(postID string) ([]models.Commen
 	if err != nil {
 		return nil, fmt.Errorf("invalid post ID: %w", err)
 	}
-	if postIDInt <= 0 {
-		return nil, fmt.Errorf("invalid post ID")
-	}
 
+	// Simplified query to get all comments for the post
 	rows, err := cc.DB.Query(`
-        WITH RECURSIVE CommentTree AS (
-            -- Base case: get top-level comments
-            SELECT 
-                id, post_id, user_id, parent_id, author, content, 
-                likes, dislikes, user_vote, timestamp,
-                0 as depth,
-                CAST(id as CHAR(50)) as path
-            FROM comments 
-            WHERE post_id = ? AND parent_id IS NULL
-            
-            UNION ALL
-            
-            -- Recursive case: get replies with depth limit
-            SELECT 
-                c.id, c.post_id, c.user_id, c.parent_id, c.author, c.content,
-                c.likes, c.dislikes, c.user_vote, c.timestamp,
-                ct.depth + 1,
-                CONCAT(ct.path, ',', c.id)
-            FROM comments c
-            INNER JOIN CommentTree ct ON c.parent_id = ct.id
-            WHERE ct.depth < 6  -- Limit depth to 6 levels
-        )
-        SELECT * FROM CommentTree
-        ORDER BY path, depth, timestamp;
-    `, postIDInt)
+		SELECT 
+			id, post_id, user_id, parent_id, author, content,
+			likes, dislikes, user_vote, timestamp
+		FROM comments 
+		WHERE post_id = ?
+		ORDER BY timestamp ASC
+	`, postIDInt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch comments: %w", err)
 	}
 	defer rows.Close()
 
-	commentMap := make(map[int]*models.Comment)
-	var topLevelComments []*models.Comment
-
+	var comments []models.Comment
 	for rows.Next() {
 		var comment models.Comment
-		var depth int
-		var path string
 		err := rows.Scan(
 			&comment.ID, &comment.PostID, &comment.UserID, &comment.ParentID,
 			&comment.Author, &comment.Content, &comment.Likes, &comment.Dislikes,
-			&comment.UserVote, &comment.Timestamp, &depth, &path,
+			&comment.UserVote, &comment.Timestamp,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan comment: %w", err)
 		}
-
-		// Initialize Replies slice
-		comment.Replies = make([]models.Comment, 0)
-
-		// Store in map
-		commentMap[comment.ID] = &comment
-
-		if !comment.ParentID.Valid {
-			// This is a top-level comment
-			topLevelComments = append(topLevelComments, commentMap[comment.ID])
-		} else {
-			// This is a reply - add it to its parent's replies
-			parentID := int(comment.ParentID.Int64)
-
-			if parent, exists := commentMap[parentID]; exists {
-				// Check if parent is a top-level comment
-				isTopLevelParent := false
-				for _, topComment := range topLevelComments {
-					if topComment.ID == parentID {
-						isTopLevelParent = true
-						break
-					}
-				}
-
-				if isTopLevelParent {
-					// Add reply directly to parent since it's a top-level comment
-					parent.Replies = append(parent.Replies, *commentMap[comment.ID])
-				} else {
-					// Find the top-level ancestor and add the reply there
-					for _, topComment := range topLevelComments {
-						var addReplyToTopLevel func(*models.Comment) bool
-						addReplyToTopLevel = func(c *models.Comment) bool {
-							for i := range c.Replies {
-								if c.Replies[i].ID == parentID {
-									c.Replies[i].Replies = append(c.Replies[i].Replies, *commentMap[comment.ID])
-									return true
-								}
-								if addReplyToTopLevel(&c.Replies[i]) {
-									return true
-								}
-							}
-							return false
-						}
-						if addReplyToTopLevel(topComment) {
-							break
-						}
-					}
-				}
-			}
-		}
+		comments = append(comments, comment)
 	}
 
-	// Convert to slice of values
-	result := make([]models.Comment, len(topLevelComments))
-	for i, comment := range topLevelComments {
-		result[i] = *comment
-	}
-
-	return result, nil
+	return comments, nil
 }
 
 func (cc *CommentController) GetCommentCountByPostID(postID int) (int, error) {
 	var count int
 	err := cc.DB.QueryRow(`
-        SELECT COUNT(*) 
-        FROM comments 
-        WHERE post_id = ?
+        WITH RECURSIVE comment_tree AS (
+            SELECT id, parent_id
+            FROM comments
+            WHERE post_id = ?
+            UNION ALL
+            SELECT c.id, c.parent_id
+            FROM comments c
+            INNER JOIN comment_tree ct ON c.parent_id = ct.id
+        )
+        SELECT COUNT(*) FROM comment_tree
     `, postID).Scan(&count)
+
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch comment count: %w", err)
+		return 0, fmt.Errorf("failed to get comment count: %w", err)
 	}
+
 	return count, nil
 }
 
@@ -258,4 +188,3 @@ func (cc *CommentController) UpdateComment(commentID int, content string) error 
 
 	return nil
 }
-
