@@ -555,52 +555,76 @@ export default class ViewPost {
 
   async handleCommentVote(commentId, type) {
     if (!this.user) {
-      this.showToast('Please log in to vote');
-      return;
+        this.showToast('Please log in to vote');
+        return;
     }
 
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const response = await fetch('/api/comments/vote', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({
-          comment_id: commentId,
-          vote_type: type
-        })
-      });
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        console.log('Sending vote request:', {
+            commentId: parseInt(commentId),
+            voteType: type
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to vote');
-      }
+        const response = await fetch('/api/comments/vote', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({
+                commentId: parseInt(commentId),
+                voteType: type
+            })
+        });
 
-      const data = await response.json();
-      this.updateCommentVoteCounts(commentId, data.likes, data.dislikes);
-      this.toggleCommentVoteButtonStates(commentId, type);
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+
+        if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}: ${responseText}`);
+        }
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Invalid JSON response: ${responseText}`);
+        }
+
+        if (data.status === 'success' && data.data) {
+            // Update vote counts
+            const likesElement = document.getElementById(`comment-likes-${commentId}`);
+            const dislikesElement = document.getElementById(`comment-dislikes-${commentId}`);
+            
+            if (likesElement) {
+                likesElement.textContent = data.data.likes;
+            }
+            if (dislikesElement) {
+                dislikesElement.textContent = data.data.dislikes;
+            }
+
+            // Update button states
+            const likeButton = document.querySelector(`.comment-vote[data-vote="up"][data-comment-id="${commentId}"]`);
+            const dislikeButton = document.querySelector(`.comment-vote[data-vote="down"][data-comment-id="${commentId}"]`);
+
+            if (likeButton && dislikeButton) {
+                if (type === 'like') {
+                    likeButton.classList.toggle('active');
+                    dislikeButton.classList.remove('dactive');
+                } else {
+                    dislikeButton.classList.toggle('dactive');
+                    likeButton.classList.remove('active');
+                }
+            }
+
+            this.showToast('Vote recorded successfully');
+        } else {
+            throw new Error(data.error || 'Failed to process vote');
+        }
     } catch (error) {
-      console.error('Error voting on comment:', error);
-      this.showToast('Failed to vote on comment');
-    }
-  }
-
-  updateCommentVoteCounts(commentId, likes, dislikes) {
-    const likesElement = document.getElementById(`comment-likes-${commentId}`);
-    const dislikesElement = document.getElementById(`comment-dislikes-${commentId}`);
-
-    if (likesElement) likesElement.textContent = likes;
-    if (dislikesElement) dislikesElement.textContent = dislikes;
-  }
-
-  toggleCommentVoteButtonStates(commentId, activeType) {
-    const likeButton = document.querySelector(`.comment-vote[data-comment-id="${commentId}"][data-vote="up"]`);
-    const dislikeButton = document.querySelector(`.comment-vote[data-comment-id="${commentId}"][data-vote="down"]`);
-
-    if (likeButton && dislikeButton) {
-      likeButton.classList.toggle('active', activeType === 'like');
-      dislikeButton.classList.toggle('active', activeType === 'dislike');
+        console.error('Error voting on comment:', error);
+        this.showToast(error.message || 'Failed to vote on comment');
     }
   }
 
