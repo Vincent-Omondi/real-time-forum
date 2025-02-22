@@ -1533,3 +1533,22 @@ body {
         z-index: 1000;
     }
 }
+
+.comment {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: var(--bg-secondary);
+}
+
+.nested-comments {
+    margin-left: 2rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--border-color);
+}
+
+.comment.depth-1 { margin-left: 1rem; }
+.comment.depth-2 { margin-left: 2rem; }
+.comment.depth-3 { margin-left: 3rem; }
+.comment.depth-4 { margin-left: 4rem; }
+.comment.depth-5 { margin-left: 5rem; } 
