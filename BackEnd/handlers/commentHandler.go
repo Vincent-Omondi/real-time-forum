@@ -33,9 +33,9 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			return
 		}
 
-		// Extract postID from the URL path
+		// Extract postID from the URL path (/api/posts/{postId}/comments)
 		pathParts := strings.Split(r.URL.Path, "/")
-		if len(pathParts) < 3 || pathParts[1] != "comment" {
+		if len(pathParts) < 5 || pathParts[1] != "api" || pathParts[2] != "posts" || pathParts[4] != "comments" {
 			logger.Error("Invalid URL path: %s", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
@@ -45,7 +45,7 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			return
 		}
 
-		postIDStr := pathParts[2]
+		postIDStr := pathParts[3]
 		postId, err := strconv.Atoi(postIDStr)
 		if err != nil {
 			logger.Error("Invalid postID: %v", err)
@@ -53,6 +53,16 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid postID",
+			})
+			return
+		}
+
+		// Only handle POST requests for creating comments
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Method not allowed",
 			})
 			return
 		}
@@ -115,8 +125,12 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 		// Return the created comment ID in the response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]int{
-			"commentID": commentID,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"commentID": commentID,
+				"message":   "Comment created successfully",
+			},
 		})
 	}
 }
