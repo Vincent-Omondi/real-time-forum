@@ -237,6 +237,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    transition: all 0.2s ease;
 }
 
 .vote-button:hover {
@@ -244,13 +245,19 @@
     color: var(--text-primary);
 }
 
-.vote-button.active {
-    color: var(--accent-color);
+.vote-button.active[id="Like"] {
+    color: var(--upvote-color);
+}
+
+.vote-button.active[id="DisLike"] {
+    color: var(--downvote-color);
 }
 
 .counter {
     color: var(--text-secondary);
     font-size: 13px;
+    min-width: 20px;
+    text-align: center;
 }
 
 /* Comments section */
