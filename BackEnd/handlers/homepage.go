@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
@@ -76,6 +77,18 @@ func (h *HomePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		posts[i].Comments = make([]models.Comment, 0)
 		posts[i].CommentCount = commentCount
+
+		// Fetch comments for the post
+		comments, err := commentController.GetCommentsByPostID(strconv.Itoa(posts[i].ID))
+		if err != nil {
+			logger.Error("Failed to fetch comments for post %d: %v", posts[i].ID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Failed to fetch comments",
+			})
+			return
+		}
+		posts[i].Comments = comments
 	}
 
 	response := map[string]interface{}{
