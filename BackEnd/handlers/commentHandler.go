@@ -33,9 +33,9 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			return
 		}
 
-		// Extract postID from the URL path
+		// Extract postID from the URL path (/api/posts/{postId}/comments)
 		pathParts := strings.Split(r.URL.Path, "/")
-		if len(pathParts) < 3 || pathParts[1] != "comment" {
+		if len(pathParts) < 5 || pathParts[1] != "api" || pathParts[2] != "posts" || pathParts[4] != "comments" {
 			logger.Error("Invalid URL path: %s", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
@@ -45,7 +45,7 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			return
 		}
 
-		postIDStr := pathParts[2]
+		postIDStr := pathParts[3]
 		postId, err := strconv.Atoi(postIDStr)
 		if err != nil {
 			logger.Error("Invalid postID: %v", err)
@@ -53,6 +53,16 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid postID",
+			})
+			return
+		}
+
+		// Only handle POST requests for creating comments
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Method not allowed",
 			})
 			return
 		}
@@ -115,8 +125,12 @@ func CommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
 		// Return the created comment ID in the response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]int{
-			"commentID": commentID,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"commentID": commentID,
+				"message":   "Comment created successfully",
+			},
 		})
 	}
 }
@@ -266,6 +280,102 @@ func UpdateCommentHandler(cc *controllers.CommentController) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Comment updated successfully",
+		})
+	}
+}
+
+func CreateCommentHandler(cCtrl *controllers.CommentController) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Always set content type first
+		w.Header().Set("Content-Type", "application/json")
+
+		// Helper function to send JSON response
+		sendJSONResponse := func(statusCode int, data interface{}) {
+			w.WriteHeader(statusCode)
+			if err := json.NewEncoder(w).Encode(data); err != nil {
+				logger.Error("Failed to encode JSON response: %v", err)
+			}
+		}
+
+		// Check if user is logged in
+		loggedIn, userID := isLoggedIn(cCtrl.DB, r)
+		if !loggedIn {
+			sendJSONResponse(http.StatusUnauthorized, map[string]interface{}{
+				"status": "error",
+				"error":  "Must be logged in to comment",
+			})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			PostId   int    `json:"postId"`
+			ParentId int    `json:"parentId"`
+			Content  string `json:"content"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.Error("Failed to decode comment request: %v", err)
+			sendJSONResponse(http.StatusBadRequest, map[string]interface{}{
+				"status": "error",
+				"error":  "Invalid request format",
+			})
+			return
+		}
+
+		// Log request data for debugging
+		logger.Info("Received comment request: postId=%d, parentId=%d, content=%s",
+			req.PostId, req.ParentId, req.Content)
+
+		// Validate content
+		if req.Content == "" {
+			sendJSONResponse(http.StatusBadRequest, map[string]interface{}{
+				"status": "error",
+				"error":  "Comment content cannot be empty",
+			})
+			return
+		}
+
+		// Get username
+		username := controllers.GetUsernameByID(cCtrl.DB, userID)
+		if username == "" {
+			sendJSONResponse(http.StatusInternalServerError, map[string]interface{}{
+				"status": "error",
+				"error":  "Failed to get username",
+			})
+			return
+		}
+
+		// Create comment
+		comment := models.Comment{
+			PostID:    req.PostId,
+			UserID:    userID,
+			Author:    username,
+			Content:   req.Content,
+			ParentID:  sql.NullInt64{Int64: int64(req.ParentId), Valid: req.ParentId > 0},
+			Timestamp: time.Now(),
+			Likes:     0,
+			Dislikes:  0,
+		}
+
+		// Insert comment
+		commentID, err := cCtrl.InsertComment(comment)
+		if err != nil {
+			logger.Error("Failed to insert comment: %v", err)
+			sendJSONResponse(http.StatusInternalServerError, map[string]interface{}{
+				"status": "error",
+				"error":  "Failed to create comment",
+			})
+			return
+		}
+
+		// Return success response
+		sendJSONResponse(http.StatusCreated, map[string]interface{}{
+			"status": "success",
+			"data": map[string]interface{}{
+				"commentId": commentID,
+				"message":   "Comment created successfully",	
+			},
 		})
 	}
 }

@@ -174,11 +174,11 @@ func (ac *AuthController) SanitizeInput(input string) string {
 
 // Function to retrieve username based on user ID from SQLite database
 func GetUsernameByID(db *sql.DB, userID int) string {
-	var username string
+	var nickname string
 
-	// Query to fetch the username for the given user ID
-	query := `SELECT username FROM users WHERE id = ?`
-	err := db.QueryRow(query, userID).Scan(&username)
+	// Query to fetch the nickname for the given user ID
+	query := `SELECT nickname FROM users WHERE id = ?`
+	err := db.QueryRow(query, userID).Scan(&nickname)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// No rows were found for the given user ID
@@ -188,5 +188,5 @@ func GetUsernameByID(db *sql.DB, userID int) string {
 		return ""
 	}
 
-	return username
+	return nickname
 }

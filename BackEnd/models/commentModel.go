@@ -24,5 +24,5 @@ type Comment struct {
 
 type CommentRequest struct {
 	Content  string `json:"content"`
-	ParentID int    `json:"parentId,omitempty"`
+	ParentID int    `json:"parentID,omitempty"`
 }

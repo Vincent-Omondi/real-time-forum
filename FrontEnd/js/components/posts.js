@@ -1,10 +1,16 @@
 import userStore from '../store/userStore.js';
 import { initComments } from './comments.js';
 import { postsAPI } from '../utils/api.js';
+import { 
+    initializeVoteStates, 
+    handleVote, 
+    getUserVotes,
+    updateVoteCounts,
+    toggleVoteButtonStates 
+} from '../utils/voteUtils.js';
 
-// Vote management
-let userVotes = {};
-let userCommentVotes = {};
+// Get vote states from the utility
+const { userVotes, userCommentVotes } = getUserVotes();
 
 export async function initPosts() {
     // Get container from the mainContent component
@@ -15,6 +21,17 @@ export async function initPosts() {
     }
     await initializeVoteStates();
     await loadPosts();
+}
+
+function debugCSRF(message, data) {
+    console.log(`[CSRF Debug] ${message}`, data);
+}
+
+function getCsrfToken() {
+    const token = localStorage.getItem('csrfToken') || 
+                 document.querySelector('meta[name="csrf-token"]')?.content;
+    debugCSRF('Retrieved CSRF token:', token);
+    return token;
 }
 
 async function loadPosts() {
@@ -120,7 +137,7 @@ function createPostHTML(post) {
                     <div class="comments-count">
                         <a href="/viewPost?id=${post.ID}#commentText" data-link>
                             <i class="fa-regular fa-comment"></i>
-                            <span class="counter" id="comments-count-${post.ID}">${post.CommentCount || 0}</span>
+                            <span class="counter" id="comments-count-${post.ID}">${(post.Comments || []).length}</span>
                         </a>
                     </div>
                 </div>
@@ -187,78 +204,11 @@ function attachPostEventListeners() {
     document.querySelectorAll('[id="Like"], [id="DisLike"]').forEach(button => {
         button.addEventListener('click', async (e) => {
             e.preventDefault();
-            const user = userStore.getCurrentUser();
-            if (!user) {
-                showToast('Please log in to vote');
-                return;
-            }
-
             const postId = button.dataset.postId;
             const voteType = button.id.toLowerCase();
-            
-            try {
-                const response = await fetch('/api/posts/vote', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        post_id: postId,
-                        vote: voteType
-                    })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    updateVoteCounts(postId, data.likes, data.dislikes);
-                    toggleVoteButtonStates(postId, voteType);
-                    userVotes[postId] = voteType;
-                } else {
-                    const error = await response.json();
-                    showToast(error.message || 'Failed to vote');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('An error occurred while voting');
-            }
+            await handleVote(postId, voteType, userStore, showToast);
         });
     });
-}
-
-function updateVoteCounts(postId, likes, dislikes) {
-    const likesContainer = document.getElementById(`likes-container-${postId}`);
-    const dislikesContainer = document.getElementById(`dislikes-container-${postId}`);
-    
-    if (likesContainer) likesContainer.textContent = likes;
-    if (dislikesContainer) dislikesContainer.textContent = dislikes;
-}
-
-function toggleVoteButtonStates(postId, activeVoteType) {
-    const likeButton = document.querySelector(`[id="Like"][data-post-id="${postId}"]`);
-    const dislikeButton = document.querySelector(`[id="DisLike"][data-post-id="${postId}"]`);
-
-    if (likeButton && dislikeButton) {
-        likeButton.classList.remove('active');
-        dislikeButton.classList.remove('active');
-
-        if (activeVoteType === 'like') {
-            likeButton.classList.add('active');
-        } else if (activeVoteType === 'dislike') {
-            dislikeButton.classList.add('active');
-        }
-    }
-}
-
-async function initializeVoteStates() {
-    try {
-        const response = await fetch('/api/users/votes');
-        if (response.ok) {
-            const data = await response.json();
-            userVotes = data.postVotes || {};
-            userCommentVotes = data.commentVotes || {};
-        }
-    } catch (error) {
-        console.error('Error initializing vote states:', error);
-    }
 }
 
 function showToast(message) {
