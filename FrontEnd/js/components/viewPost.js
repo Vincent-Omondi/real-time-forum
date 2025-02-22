@@ -29,20 +29,17 @@ export default class ViewPost {
     }
 
     try {
-      console.log('Fetching post with ID:', this.postId);
       const response = await fetch(`/api/posts/${this.postId}`);
-      console.log('Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response error:', errorText);
 
         if (response.status === 404) {
           return `
             <div class="error-container">
               <h2>Post Not Found</h2>
               <p>The post you're looking for doesn't exist or has been removed.</p>
-              <button class="back-button" data-link onclick="window.router.navigateTo('/')">
+              <button class="back-button" onclick="history.back()">
                 <i class="fa-solid fa-arrow-left"></i> Go Back
               </button>
             </div>
@@ -52,16 +49,13 @@ export default class ViewPost {
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (data.status !== 'success' || !data.data || !data.data.post) {
-        console.error('Invalid response format:', data);
         throw new Error('Invalid response format');
       }
 
       this.post = data.data.post;
       this.comments = data.data.comments || [];
-      // Merge additional auth info if provided by the API
       this.user = {
         ...this.user,
         isAuthenticated: data.data.isAuthenticated,
@@ -70,12 +64,11 @@ export default class ViewPost {
 
       return this.renderPost();
     } catch (error) {
-      console.error('Error loading post:', error);
       return `
         <div class="error-container">
           <h2>Error Loading Post</h2>
           <p>Sorry, we couldn't load the post. Please try again later.</p>
-          <button class="back-button" data-link onclick="window.router.navigateTo('/')">
+          <button class="back-button" onclick="history.back()">
             <i class="fa-solid fa-arrow-left"></i> Go Back
           </button>
         </div>
@@ -91,7 +84,7 @@ export default class ViewPost {
     return `
       <div class="posts-container">
         <div class="back-button-container">
-          <button data-link onclick="window.router.navigateTo('/')" class="back-button">
+          <button onclick="history.back()" class="back-button">
             <i class="fa-solid fa-arrow-left"></i> Back
           </button>
         </div>
@@ -180,13 +173,10 @@ export default class ViewPost {
   }
 
   renderComments(comments, parentId = null, depth = 0) {
-    // Filter comments based on parentId
     const filteredComments = comments.filter(comment => {
         if (parentId === null) {
-            // For top-level comments, ParentID should be null/undefined or ParentID.Valid should be false
             return !comment.ParentID || !comment.ParentID.Valid;
         } else {
-            // For replies, ParentID.Valid should be true and ParentID.Int64 should match parent
             return comment.ParentID && 
                    comment.ParentID.Valid && 
                    parseInt(comment.ParentID.Int64) === parseInt(parentId);
@@ -198,7 +188,6 @@ export default class ViewPost {
     return filteredComments.map(comment => {
         const isAuthor = this.user && this.user.id === comment.UserID;
         
-        // Find replies for this comment
         const replies = comments.filter(reply => 
             reply.ParentID && 
             reply.ParentID.Valid && 
@@ -309,7 +298,6 @@ export default class ViewPost {
           e.preventDefault();
           if (commentTextarea.value.trim()) {
             const postId = commentButton.getAttribute('data-post-id');
-            console.log('Submitting comment for post:', postId); // Debug log
             this.submitComment(postId);
           }
         });
@@ -414,7 +402,6 @@ export default class ViewPost {
 
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      console.log('Submitting comment with CSRF token:', csrfToken); // Debug log
 
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
@@ -432,7 +419,6 @@ export default class ViewPost {
       }
 
       const result = await response.json();
-      console.log('Comment submission response:', result); // Debug log
 
       if (result.status === 'success') {
         textarea.value = '';
@@ -468,7 +454,6 @@ export default class ViewPost {
         throw new Error(result.error || 'Failed to submit comment');
       }
     } catch (error) {
-      console.error('Error submitting comment:', error);
       this.showToast('Failed to submit comment');
     }
   }
@@ -500,14 +485,12 @@ export default class ViewPost {
 
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        console.log('Submitting reply with CSRF token:', csrfToken);
 
         // Log the request payload for debugging
         const payload = {
             content: content,
             parentID: parseInt(commentId)  // Changed from parentId to parentID to match backend
         };
-        console.log('Submitting reply payload:', payload);
 
         const response = await fetch(`/api/posts/${postId}/comments`, {
             method: 'POST',
@@ -519,7 +502,6 @@ export default class ViewPost {
         });
 
         const result = await response.json();
-        console.log('Reply submission response:', result);
 
         if (!response.ok) {
             throw new Error(result.error || result.message || 'Failed to submit reply');
@@ -561,7 +543,6 @@ export default class ViewPost {
             throw new Error(result.error || 'Failed to submit reply');
         }
     } catch (error) {
-        console.error('Error submitting reply:', error);
         this.showToast(error.message || 'Failed to submit reply');
     }
   }
@@ -574,10 +555,6 @@ export default class ViewPost {
 
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        console.log('Sending vote request:', {
-            commentId: parseInt(commentId),
-            voteType: type
-        });
 
         const response = await fetch('/api/comments/vote', {
             method: 'POST',
@@ -592,7 +569,6 @@ export default class ViewPost {
         });
 
         const responseText = await response.text();
-        console.log('Raw response:', responseText);
 
         if (!response.ok) {
             throw new Error(`Server responded with ${response.status}: ${responseText}`);
@@ -636,7 +612,6 @@ export default class ViewPost {
             throw new Error(data.error || 'Failed to process vote');
         }
     } catch (error) {
-        console.error('Error voting on comment:', error);
         this.showToast(error.message || 'Failed to vote on comment');
     }
   }
@@ -659,30 +634,40 @@ export default class ViewPost {
     const content = textarea.value.trim();
 
     if (!content) {
-      alert('Comment cannot be empty');
-      return;
+        this.showToast('Comment cannot be empty');
+        return;
     }
 
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const response = await fetch(`/api/comments/${commentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({ content })
-      });
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const response = await fetch(`/api/comments/${commentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ content })
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to edit comment');
-      }
+        if (!response.ok) {
+            throw new Error('Failed to edit comment');
+        }
 
-      const contentElement = document.getElementById(`comment-content-${commentId}`);
-      contentElement.textContent = content;
+        // Fetch updated comments after edit
+        const commentsResponse = await fetch(`/api/posts/${this.postId}`);
+        if (!commentsResponse.ok) {
+            throw new Error('Failed to fetch updated comments');
+        }
+
+        const data = await commentsResponse.json();
+        if (data.status === 'success' && data.data.comments) {
+            this.comments = data.data.comments;
+            const commentsContainer = document.querySelector('.comments-container');
+            commentsContainer.innerHTML = this.renderComments(this.comments);
+            this.attachEventListeners();
+        }
     } catch (error) {
-      console.error('Error editing comment:', error);
-      alert('Failed to edit comment');
+        this.showToast('Failed to edit comment');
     }
   }
 
@@ -693,23 +678,35 @@ export default class ViewPost {
 
   async confirmDeleteComment(commentId) {
     if (confirm('Are you sure you want to delete this comment?')) {
-      try {
-        const response = await fetch(`/api/comments/${commentId}`, {
-          method: 'DELETE'
-        });
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            const response = await fetch(`/api/comments?id=${commentId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-Token': csrfToken
+                }
+            });
 
-        if (!response.ok) {
-          throw new Error('Failed to delete comment');
-        }
+            if (!response.ok) {
+                throw new Error('Failed to delete comment');
+            }
 
-        const commentElement = document.getElementById(`comment-${commentId}`);
-        if (commentElement) {
-          commentElement.remove();
+            // Fetch updated comments after deletion
+            const commentsResponse = await fetch(`/api/posts/${this.postId}`);
+            if (!commentsResponse.ok) {
+                throw new Error('Failed to fetch updated comments');
+            }
+
+            const data = await commentsResponse.json();
+            if (data.status === 'success' && data.data.comments) {
+                this.comments = data.data.comments;
+                const commentsContainer = document.querySelector('.comments-container');
+                commentsContainer.innerHTML = this.renderComments(this.comments);
+                this.attachEventListeners();
+            }
+        } catch (error) {
+            this.showToast('Failed to delete comment');
         }
-      } catch (error) {
-        console.error('Error deleting comment:', error);
-        alert('Failed to delete comment');
-      }
     }
   }
 
