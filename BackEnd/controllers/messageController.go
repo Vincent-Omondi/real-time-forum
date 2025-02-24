@@ -2,8 +2,12 @@ package controllers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
+
+	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 )
 
 type Message struct {
@@ -137,3 +141,42 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
 
 	return conversations, nil
 }
+
+// GetUsersHandler returns a list of registered users.
+// It queries the users table and returns each user's id and nickname.
+func GetUsers(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set response type to JSON
+		w.Header().Set("Content-Type", "application/json")
+		
+		// Query the database for users (adjust the query/columns as needed)
+		rows, err := db.Query("SELECT id, nickname FROM users")
+		if err != nil {
+			logger.Error("Failed to query users: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		// Build the list of users
+		users := []map[string]any{}
+		for rows.Next() {
+			var id int
+			var nickname string
+			if err := rows.Scan(&id, &nickname); err != nil {
+				logger.Error("Failed to scan user: %v", err)
+				continue
+			}
+			users = append(users, map[string]any{
+				"id":       id,
+				"nickname": nickname,
+			})
+		}
+
+		// Return the list of users as JSON
+		json.NewEncoder(w).Encode(map[string]any{
+			"users": users,
+		})
+	}
+}
+
