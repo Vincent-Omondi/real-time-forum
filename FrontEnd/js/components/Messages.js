@@ -8,6 +8,7 @@ export class MessagesView {
         this.isLoading = false;
         this.loadMoreThrottled = throttle(this.loadMoreMessages.bind(this), 1000);
         this.messageStore = messageStore;
+        this.ws = null;
     }
 
     async loadMoreMessages(userId) {
@@ -51,7 +52,7 @@ export class MessagesView {
 
     async loadConversations() {
         try {
-            // Get CSRF token
+            // Get CSRF token from meta tag
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
             
             const response = await fetch('/api/messages/conversations', {
@@ -64,7 +65,6 @@ export class MessagesView {
                 }
             });
 
-            // Log response for debugging
             console.log('Response status:', response.status);
             const responseText = await response.text();
             console.log('Response text:', responseText);
@@ -73,7 +73,6 @@ export class MessagesView {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // Parse the response text
             const data = responseText ? JSON.parse(responseText) : { conversations: [] };
             
             if (data.error) {
@@ -85,12 +84,11 @@ export class MessagesView {
             this.renderConversationList();
         } catch (error) {
             console.error('Error loading conversations:', error);
-            // Check if we need to redirect to login
+            // Redirect to login if unauthorized
             if (error.message.includes('Unauthorized')) {
                 window.location.href = '/login';
                 return;
             }
-            // Set empty conversations array on error
             this.messageStore.setConversations([]);
             this.renderConversationList();
         }
@@ -100,20 +98,100 @@ export class MessagesView {
         const contactsList = document.querySelector('.contacts-list');
         const conversations = this.messageStore.conversations;
         
-        contactsList.innerHTML = conversations.map(conv => `
-            <div class="contact-item" data-user-id="${conv.other_user_id}">
-                <div class="contact-avatar">
-                    ${conv.username.charAt(0).toUpperCase()}
+        if (conversations.length === 0) {
+            // Show a placeholder with a "Start New Conversation" button
+            contactsList.innerHTML = `
+                <div class="no-conversations">
+                    <p>No conversations yet.</p>
+                    <button id="start-new-conversation">Start a New Conversation</button>
                 </div>
-                <div class="contact-info">
-                    <div class="contact-name">${conv.username}</div>
-                    <div class="contact-status ${conv.is_online ? 'online' : ''}">
-                        ${conv.is_online ? 'Online' : 'Last seen ' + formatTimestamp(conv.last_seen)}
+            `;
+            document.getElementById('start-new-conversation')
+                .addEventListener('click', () => this.showUserSearchModal());
+        } else {
+            contactsList.innerHTML = conversations.map(conv => `
+                <div class="contact-item" data-user-id="${conv.other_user_id}">
+                    <div class="contact-avatar">
+                        ${conv.username.charAt(0).toUpperCase()}
                     </div>
-                    <div class="last-message">${conv.last_message || 'No messages yet'}</div>
+                    <div class="contact-info">
+                        <div class="contact-name">${conv.username}</div>
+                        <div class="contact-status ${conv.is_online ? 'online' : ''}">
+                            ${conv.is_online ? 'Online' : 'Last seen ' + formatTimestamp(conv.last_seen)}
+                        </div>
+                        <div class="last-message">${conv.last_message || 'No messages yet'}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+        }
+    }
+
+    async showUserSearchModal() {
+        try {
+            // Fetch registered users from a new endpoint, e.g., /api/users
+            const response = await fetch('/api/users', { credentials: 'include' });
+            if (!response.ok) throw new Error("Failed to fetch users");
+            const data = await response.json();
+            const users = data.users;
+
+            // Create a modal container
+            const modal = document.createElement('div');
+            modal.classList.add('user-search-modal');
+            modal.innerHTML = `
+                <div class="modal-overlay"></div>
+                <div class="modal-content">
+                    <h2>Select a user to chat with</h2>
+                    <input type="text" id="user-search-input" placeholder="Search users..." />
+                    <div id="user-search-results">
+                        ${users.map(user => `
+                            <div class="user-search-item" data-user-id="${user.id}">
+                                ${user.nickname}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="close-user-search">Close</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Close modal button
+            modal.querySelector('#close-user-search').addEventListener('click', () => {
+                this.closeUserSearchModal();
+            });
+
+            // Filter users as you type
+            const searchInput = modal.querySelector('#user-search-input');
+            searchInput.addEventListener('input', () => {
+                const filter = searchInput.value.toLowerCase();
+                const items = modal.querySelectorAll('.user-search-item');
+                items.forEach(item => {
+                    if (item.textContent.toLowerCase().includes(filter)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+
+            // When a user is selected, start a conversation
+            modal.querySelectorAll('.user-search-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const userId = e.target.dataset.userId;
+                    this.selectConversation(userId);
+                    this.closeUserSearchModal();
+                });
+            });
+
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        }
+    }
+
+    closeUserSearchModal() {
+        const modal = document.querySelector('.user-search-modal');
+        if (modal) {
+            modal.remove();
+        }
     }
 
     async loadMessages(userId, page = 1) {
@@ -240,4 +318,4 @@ export class MessagesView {
         this.messageStore.currentConversation = userId;
         this.loadMessages(userId);
     }
-} 
+}
