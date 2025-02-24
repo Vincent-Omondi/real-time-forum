@@ -1,4 +1,6 @@
 import { checkAuth } from './auth.js';
+import messageStore from '../store/messageStore.js';
+import { throttle } from '../utils/throttle.js';
 
 export function initMessages() {
     const user = checkAuth();
@@ -158,4 +160,66 @@ function setupWebSocket() {
             loadChatList(); // Refresh chat list to update last messages
         }
     });
+}
+
+export class MessagesComponent {
+    constructor() {
+        this.currentPage = 1;
+        this.isLoading = false;
+        this.setupWebSocket();
+        this.loadMoreThrottled = throttle(this.loadMoreMessages.bind(this), 1000);
+    }
+
+    async loadConversations() {
+        try {
+            const response = await fetch('/api/messages/conversations');
+            const conversations = await response.json();
+            messageStore.setConversations(conversations);
+            this.renderConversationList();
+        } catch (error) {
+            console.error('Error loading conversations:', error);
+        }
+    }
+
+    async loadMessages(userId, page = 1) {
+        if (this.isLoading) return;
+        this.isLoading = true;
+
+        try {
+            const response = await fetch(`/api/messages/${userId}?page=${page}`);
+            const messages = await response.json();
+            
+            if (page === 1) {
+                messageStore.setMessages(userId, messages);
+            } else {
+                const existing = messageStore.messages.get(userId) || [];
+                messageStore.setMessages(userId, [...messages, ...existing]);
+            }
+            
+            this.currentPage = page;
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    setupWebSocket() {
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        
+        ws.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === 'message') {
+                messageStore.addMessage(message.sender_id, message);
+                this.updateConversationList();
+            }
+        };
+    }
+
+    attachScrollListener() {
+        const messagesContainer = document.querySelector('.chat-messages');
+        messagesContainer.addEventListener('scroll', () => {
+            if (messagesContainer.scrollTop === 0) {
+                this.loadMoreThrottled(messageStore.currentConversation);
+            }
+        });
+    }
 } 
