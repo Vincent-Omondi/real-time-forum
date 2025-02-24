@@ -94,12 +94,71 @@ export class MessagesView {
         }
     }
 
+    startNewConversation() {
+        // Update the chat header to "New message"
+        const chatHeader = document.querySelector('.chat-header');
+        chatHeader.innerHTML = `<h2>New message</h2>`;
+    
+        // Create or reuse a container for the "To:" input and search results
+        let newConvoContainer = document.querySelector('.new-conversation-container');
+        if (!newConvoContainer) {
+            newConvoContainer = document.createElement('div');
+            newConvoContainer.classList.add('new-conversation-container');
+            // Insert the container just after the chat header
+            chatHeader.insertAdjacentElement('afterend', newConvoContainer);
+        }
+        newConvoContainer.innerHTML = `
+            <div class="new-message-info">
+                <label>To:</label>
+                <input type="text" placeholder="Search users..." id="new-convo-search" />
+                <div id="new-convo-results"></div>
+            </div>
+        `;
+    
+        const searchInput = newConvoContainer.querySelector('#new-convo-search');
+        const resultsContainer = newConvoContainer.querySelector('#new-convo-results');
+    
+        // Listen for input events to perform the search
+        searchInput.addEventListener('input', async () => {
+            const query = searchInput.value.trim();
+            if (!query) {
+                resultsContainer.innerHTML = '';
+                return;
+            }
+            try {
+                // Fetch registered users (if your /api/users endpoint doesn’t support search, fetch all and filter)
+                const response = await fetch('/api/users', { credentials: 'include' });
+                const data = await response.json();
+                const users = data.users;
+                // Filter users by the search query (by nickname, case-insensitive)
+                const filteredUsers = users.filter(user => user.nickname.toLowerCase().includes(query.toLowerCase()));
+                resultsContainer.innerHTML = filteredUsers.map(user => `
+                    <div class="new-convo-item" data-user-id="${user.id}">
+                        ${user.nickname}
+                    </div>
+                `).join('');
+                // When a user is clicked, start the conversation
+                resultsContainer.querySelectorAll('.new-convo-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const userId = item.dataset.userId;
+                        // Call your existing selectConversation method to load the conversation
+                        this.selectConversation(userId);
+                        // Remove the new conversation UI after selection
+                        newConvoContainer.remove();
+                    });
+                });
+            } catch (error) {
+                console.error('Error searching users:', error);
+            }
+        });
+    }
+    
+
     renderConversationList() {
         const contactsList = document.querySelector('.contacts-list');
         const conversations = this.messageStore.conversations;
         
         if (conversations.length === 0) {
-            // Show a placeholder with a "Start New Conversation" button
             contactsList.innerHTML = `
                 <div class="no-conversations">
                     <p>No conversations yet.</p>
@@ -107,7 +166,7 @@ export class MessagesView {
                 </div>
             `;
             document.getElementById('start-new-conversation')
-                .addEventListener('click', () => this.showUserSearchModal());
+                .addEventListener('click', () => this.startNewConversation());
         } else {
             contactsList.innerHTML = conversations.map(conv => `
                 <div class="contact-item" data-user-id="${conv.other_user_id}">
@@ -125,6 +184,7 @@ export class MessagesView {
             `).join('');
         }
     }
+    
 
     async showUserSearchModal() {
         try {
