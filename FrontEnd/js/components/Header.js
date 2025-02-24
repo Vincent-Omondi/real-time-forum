@@ -32,6 +32,10 @@ export class Header {
             <div id="userSection" class="profile-section">
                 <!-- User section will be dynamically populated -->
             </div>
+            <a href="/messages" class="nav-link">
+                <i class="fas fa-envelope"></i>
+                <span>Messages</span>
+            </a>
         `;
         return this.element;
     }
