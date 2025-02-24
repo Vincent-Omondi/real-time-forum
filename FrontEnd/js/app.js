@@ -10,6 +10,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { MainContent } from './components/MainContent.js';
 import { Auth } from './components/auth.js';
 import userStore from './store/userStore.js';
+import { MessagesView } from './components/Messages.js';
 
 let authInitialized = false;
 
@@ -63,13 +64,14 @@ const routes = {
   '/posts': requireAuth('posts'),
   '/viewPost': requireAuth('viewPost'),
   '/profile': requireAuth('profile'),
-  '/logout': logoutUser
+  '/logout': logoutUser,
+  '/messages': requireAuth('messages'),
 };
 
 /**
  * Wraps a component render function with an authentication check.
  * If the user is not authenticated, they are redirected to the login page.
- * @param {string} componentKey - Key to look up the component in our components object.
+ * @param {string|Function} componentKey - Key to look up the component or a component function
  */
 function requireAuth(componentKey) {
   return async () => {
@@ -102,6 +104,10 @@ function requireAuth(componentKey) {
       console.error('Error loading user profile:', error);
     }
 
+    // Handle both component keys and direct functions
+    if (typeof componentKey === 'function') {
+      return componentKey();
+    }
     return components[componentKey]();
   };
 }
@@ -240,6 +246,10 @@ const components = {
     content.innerHTML = '<div class="posts-container"></div>';
     window.mainContent.setContent(content);
     await initPosts();
+  },
+  messages: async () => {
+    const messagesView = new MessagesView();
+    await messagesView.render();
   }
 };
 
