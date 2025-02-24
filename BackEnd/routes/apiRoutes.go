@@ -9,12 +9,14 @@ import (
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/handlers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/middleware"
+	"github.com/Vincent-Omondi/real-time-forum/BackEnd/websockets"
 	"github.com/gorilla/websocket"
 )
 
 // Add WebSocket handler type
 type WebSocketHandler struct {
-	db *sql.DB
+	db  *sql.DB
+	hub *websockets.MessageHub
 }
 
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +61,7 @@ func APIRoutes(db *sql.DB) {
 	likesController := controllers.NewLikesController(db)
 	commentVotesController := controllers.NewCommentVotesController(db)
 	profileHandler := handlers.NewProfileHandler(db)
+	messageController := controllers.NewMessageController(db)
 
 	// Rate limiters
 	authLimiter := middleware.NewRateLimiter(5, time.Minute)     // 5 attempts per minute
@@ -235,9 +238,29 @@ func APIRoutes(db *sql.DB) {
 		middleware.ValidatePathAndMethod("/api/user/likes", http.MethodGet),
 	))
 
+	// Message routes
+	http.Handle("/api/messages/conversations", middleware.ApplyMiddleware(
+		handlers.GetConversationsHandler(messageController),
+		middleware.AuthMiddleware,
+		middleware.SetCSPHeaders,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+	))
+
+	http.Handle("/api/messages/{userId}", middleware.ApplyMiddleware(
+		handlers.GetMessagesHandler(messageController),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+	))
+
 	// WebSocket route
 	http.Handle("/ws", middleware.ApplyMiddleware(
-		&WebSocketHandler{db: db},
+		&WebSocketHandler{
+			db:  db,
+			hub: websockets.NewMessageHub(db),
+		},
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
 	))
