@@ -1,6 +1,7 @@
 @import 'components/profile.css';
 @import 'components/auth.css';
 @import 'components/sidebar.css';
+@import 'components/main-content.css';
 
 :root {
     /* Light theme variables */
@@ -1242,33 +1243,6 @@ body {
 }
 
 /* Main content styles */
-.main-content {
-    flex: 1;
-    /* padding-left: 30px;  */
-    max-width: 750px;
-    margin: 0 auto;
-    /* padding-top:70px; */
-}
-.button-post {
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-primary);
-    padding: 4px 12px;
-    border-radius: 50px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 115px;
-    justify-content: center;
-}
-.button-post:hover {
-    border-color: var(--accent-color);
-    background: var(--hover-bg);
-}
-
 /* Responsive styles */
 @media (max-width: 1200px) {
     .container {
@@ -1278,24 +1252,8 @@ body {
         margin-top: 30px;
         padding-left: 0%;
     }
-    .sidebar {
-        position: relative;
-        top: 0;
-        left: 0;
-        /* width: 100%; */
-        /* margin-top: 20px; */
-    }
-    .posts-container {
-        padding-top: 20px;
-    }
-
-    /* .hamburger-menu {
-        display: block;
-    }
-    .logo {
-        display: none;
-    } */
 }
+
 /* For screens smaller than 1024px */
 @media (max-width: 1024px) {
     .container {
@@ -1306,14 +1264,6 @@ body {
     .trending {
         display: none;
     }
-    .main-content {
-        /* padding-left: 24px; */
-        width: 100%;
-    }
-    .post {
-        padding: 12px 12px 0 12px;
-        margin-bottom: 20px;
-    }
     .sidebar {
         display: none;
     }
@@ -1321,10 +1271,8 @@ body {
         display: flex;
         flex-direction: column;
         position: absolute;
-        /* width: 120px; */
         width: 40%;
         opacity: 100%;
-        /* background-color: #fff; */
         z-index: 1000;
     }
     .hamburger-menu {
@@ -1334,7 +1282,6 @@ body {
         display: none;
     }
 }
-
 
 /* For screens smaller than 768px */
 @media (max-width: 768px) {
@@ -1352,13 +1299,6 @@ body {
     .search-bar {
         margin: 0 12px;
     }
-    #postEditorContainer {
-        width: 95%;
-    }
-    .post {
-        padding: 10px 10px 0 10px;
-        margin-bottom: 15px;
-    }
     .logo span {
         display: none;
     }
@@ -1371,15 +1311,7 @@ body {
         margin: 0 8px;
         max-width: none;
     }
-    .button-post .button-text {
-        display: none;
-    }
-    .button-post {
-        min-width: 0px;
-        padding-block: 8px;
-    }
     .hamburger-menu {
-        /* display: none; */
         cursor: pointer;
         display: contents;
     }
@@ -1387,13 +1319,10 @@ body {
         display: flex;
         flex-direction: column;
         position: absolute;
-        /* width: 120px; */
         width: 50%;
         opacity: 100%;
-        /* background-color: #fff; */
         z-index: 1000;
     }
-
 }
 
 /* For screens smaller than 480px */
@@ -1402,41 +1331,17 @@ body {
         padding: 8px 12px;
         font-size: 13px;
     }
-    .post {
-        padding: 8px 8px 0 8px;
-        margin-bottom: 10px;
-    }
-    .post-footer {
-        /* width: 80%; */
-        position: relative;
-    }
     .search-input {
         padding: 8px 12px;
         font-size: 13px;
     }
     .header {
-        /* margin-bottom: 25px; */
         position: relative;
-    }
-    .post-author {
-        margin-top: 2px;
-    }
-    .post-tags {
-        display: none;
     }
     .sidebar {
         display: none;
     }
-    .main-content {
-        padding-left: 0%;
-    }
-    .button-post {
-        /* padding: 4px 8px; */
-        /* min-width: 10px; */
-        font-size: small;
-    }
     .container{
-        /* padding: 0; */
         margin-top: 2px;
         padding-top: 0%;
     }
@@ -1444,7 +1349,6 @@ body {
         display: flex;
         flex-direction: column;
         position: absolute;
-        /* width: 120px; */
         width: 100%;
         opacity: 100%;
         z-index: 1000;
