@@ -13,13 +13,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Add WebSocket handler type
 type WebSocketHandler struct {
-	db  *sql.DB
-	hub *websockets.MessageHub
+	Db  *sql.DB
+	Hub *websockets.MessageHub
 }
 
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Get userID from context using a type switch
+	uid := r.Context().Value("userID")
+	var userID int64
+	switch v := uid.(type) {
+	case int:
+		userID = int64(v)
+	case int64:
+		userID = v
+	default:
+		logger.Error("Failed to get userID from context; invalid type: %T", uid)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -28,29 +41,29 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return true // Allow all origins in development
 		},
 	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("Failed to upgrade to WebSocket: %v", err)
 		return
 	}
-	defer conn.Close()
 
-	// Handle WebSocket connection
-	for {
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			logger.Error("WebSocket read error: %v", err)
-			return
-		}
-
-		// Echo the message back for now
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			logger.Error("WebSocket write error: %v", err)
-			return
-		}
+	// Create new client using the properly typed userID
+	client := &websockets.Client{
+		Hub:      h.Hub,
+		Conn:     conn,
+		Send:     make(chan []byte, 256),
+		UserID:   userID,
+		IsOnline: true,
 	}
+
+	// Register client with hub
+	h.Hub.Register <- client
+
+	// Start client routines
+	go client.WritePump()
+	go client.ReadPump()
 }
+
 
 // APIRoutes sets up all API routes under the /api prefix
 func APIRoutes(db *sql.DB) {
@@ -258,10 +271,11 @@ func APIRoutes(db *sql.DB) {
 	// WebSocket route
 	http.Handle("/ws", middleware.ApplyMiddleware(
 		&WebSocketHandler{
-			db:  db,
-			hub: websockets.NewMessageHub(db),
+			Db:  db,
+			Hub: websockets.NewMessageHub(db),
 		},
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
+		middleware.AuthMiddleware,
 	))
 }
