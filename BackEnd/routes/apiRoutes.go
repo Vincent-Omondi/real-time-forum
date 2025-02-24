@@ -278,4 +278,14 @@ func APIRoutes(db *sql.DB) {
 		middleware.CORSMiddleware,
 		middleware.AuthMiddleware,
 	))
+	// User list route (returns registered users)
+	http.Handle("/api/users", middleware.ApplyMiddleware(
+		controllers.GetUsers(db),
+		middleware.SetCSPHeaders,
+		middleware.CORSMiddleware,
+		middleware.AuthMiddleware, // Protect the endpoint if needed
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/users", http.MethodGet),
+	))
+
 }
