@@ -4,6 +4,7 @@ package database
 import (
 	"database/sql"
 	"os"
+	"strings"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	_ "github.com/mattn/go-sqlite3"
@@ -23,6 +24,7 @@ func ensureStorageDirectory() error {
 func Init(env string) (*sql.DB, error) {
 	var DB *sql.DB
 	var err error
+
 
 	// Ensure storage directory exists
 	if err := ensureStorageDirectory(); err != nil {
@@ -46,6 +48,7 @@ func Init(env string) (*sql.DB, error) {
 	}
 
 	GloabalDB = DB
+    addMissingColumns(DB)
 
 	// Create Users table
 	_, err = DB.Exec(`
@@ -69,7 +72,39 @@ func Init(env string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	// addMissingColumns(DB)
+	// Create Messages table
+	_, err = DB.Exec(`
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id INTEGER NOT NULL,
+            receiver_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read_at TIMESTAMP,
+            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_users ON messages(sender_id, receiver_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(created_at);
+    `)
+	if err != nil {
+		logger.Error("Failed to create messages table: %v", err)
+		return nil, err
+	}
+
+	// Create User Status table
+	_, err = DB.Exec(`
+        CREATE TABLE IF NOT EXISTS user_status (
+            user_id INTEGER PRIMARY KEY,
+            is_online BOOLEAN DEFAULT false,
+            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    `)
+	if err != nil {
+		logger.Error("Failed to create user_status table: %v", err)
+		return nil, err
+	}
 
 	// Create Posts table
 	_, err = DB.Exec(`
@@ -182,26 +217,60 @@ func Init(env string) (*sql.DB, error) {
 	return DB, nil
 }
 
-// Function to Add Missing Columns for Existing Users Table
-// func addMissingColumns(DB *sql.DB) {
-// 	columns := map[string]string{
-// 		"nickname":   "TEXT UNIQUE NOT NULL",
-// 		"age":        "INTEGER NOT NULL CHECK(age >= 13)",
-// 		"gender":     "TEXT NOT NULL CHECK(gender IN ('male', 'female', 'other'))",
-// 		"first_name": "TEXT NOT NULL",
-// 		"last_name":  "TEXT NOT NULL",
-// 		"bio":        "TEXT DEFAULT ''",
-// 		"avatar_url": "TEXT DEFAULT ''",
-// 		"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
-// 		"updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
-// 	}
+// Function to Add Missing Columns for Existing Messages and User Status Tables
+func addMissingColumns(DB *sql.DB) {
+    // Columns to add for messages table
+    messageColumns := map[string]string{
+        "read_at":    "TIMESTAMP DEFAULT NULL",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "is_deleted": "BOOLEAN DEFAULT false",
+        "reply_to":   "INTEGER DEFAULT NULL",
+        "media_url":  "TEXT DEFAULT NULL",
+    }
 
-// 	for column, definition := range columns {
-// 		_, err := DB.Exec("ALTER TABLE users ADD COLUMN " + column + " " + definition)
-// 		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
-// 			logger.Warning("Column '%s' already exists or failed to add: %v", column, err)
-// 		} else {
-// 			logger.Info("Added column '%s' successfully", column)
-// 		}
-// 	}
-// }
+    // Columns to add for user_status table
+    userStatusColumns := map[string]string{
+        "last_activity":    "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "status_message":   "TEXT DEFAULT NULL",
+        "device_info":      "TEXT DEFAULT NULL",
+        "notification_preferences": "TEXT DEFAULT 'all'",
+        "typing_status":    "BOOLEAN DEFAULT false",
+    }
+
+    // Add columns to messages table
+    for column, definition := range messageColumns {
+        _, err := DB.Exec("ALTER TABLE messages ADD COLUMN " + column + " " + definition)
+        if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+            logger.Warning("Messages table - Column '%s' already exists or failed to add: %v", column, err)
+        } else {
+            logger.Info("Messages table - Added column '%s' successfully", column)
+        }
+    }
+
+    // Add columns to user_status table
+    for column, definition := range userStatusColumns {
+        _, err := DB.Exec("ALTER TABLE user_status ADD COLUMN " + column + " " + definition)
+        if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+            logger.Warning("User status table - Column '%s' already exists or failed to add: %v", column, err)
+        } else {
+            logger.Info("User status table - Added column '%s' successfully", column)
+        }
+    }
+
+    // Create any necessary indices for new columns
+    indices := []string{
+        "CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to)",
+        "CREATE INDEX IF NOT EXISTS idx_user_status_last_activity ON user_status(last_activity)",
+    }
+
+    for _, index := range indices {
+        _, err := DB.Exec(index)
+        if err != nil {
+            logger.Warning("Failed to create index: %v", err)
+        } else {
+            logger.Info("Created index successfully: %s", index)
+        }
+    }
+}
