@@ -115,6 +115,7 @@ function requireAuth(componentKey) {
 /**
  * Checks login status by calling the /api/check-auth endpoint.
  * If authenticated, the CSRF token is updated and the user's profile data is optionally refreshed.
+ * Now uses userStore's caching to prevent redundant API calls.
  * @returns {Promise<boolean>} True if logged in; false otherwise.
  */
 let authCheckPromise = null;
@@ -125,7 +126,30 @@ async function checkLoginStatus() {
 
   authCheckPromise = (async () => {
     try {
-      console.log("Checking auth status...");
+      // Use userStore's caching mechanism to avoid redundant auth checks
+      const shouldCheckAuth = userStore.shouldCheckAuth();
+      
+      if (!shouldCheckAuth) {
+        console.log("Using cached auth status...");
+        const isAuthenticated = userStore.isAuthenticated();
+        
+        // If not logged in and not on a public page, redirect to login
+        if (!isAuthenticated && !isPublicPath(window.location.pathname)) {
+          if (window.router) {
+            window.router.navigateTo('/login');
+          } else {
+            window.location.href = '/login';
+          }
+        } else if (isAuthenticated) {
+          updateUserSection();
+        }
+
+        // Update any UI elements that rely on auth state
+        updateUIBasedOnAuth(isAuthenticated);
+        return isAuthenticated;
+      }
+      
+      console.log("Checking auth status with backend...");
       const auth = new Auth();
       await auth.checkAuthStatus();
       
