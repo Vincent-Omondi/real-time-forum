@@ -4,7 +4,8 @@
  * @returns {string} The formatted timestamp
  */
 export function formatTimestamp(timestamp) {
-    const date = new Date(timestamp);
+    // Convert UTC string to local time
+    const date = new Date(timestamp + 'Z'); // Append 'Z' to ensure UTC parsing
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
 
