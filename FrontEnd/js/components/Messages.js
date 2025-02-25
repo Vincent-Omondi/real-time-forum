@@ -293,8 +293,12 @@ export class MessagesView {
         const content = input.value.trim();
         if (!content || !this.messageStore.currentConversation) return;
 
+        console.log('Current conversation ID:', this.messageStore.currentConversation);
+
         const receiverId = parseInt(this.messageStore.currentConversation);
         const currentUser = JSON.parse(localStorage.getItem('user'));
+
+        console.log('User data from localStorage:', currentUser);
 
         const message = {
             type: 'message',
@@ -303,10 +307,21 @@ export class MessagesView {
             sender_id: currentUser.id,
             timestamp: new Date()
         };
+        console.log('Prepared message object:', message);
 
         try {
             const ws = await this.getWebSocket();
+
+            console.log('WebSocket status:', ws ? ws.readyState : 'No WebSocket');
+        
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.error('WebSocket not connected');
+                alert('Could not connect to the messaging server. Please try again later.');
+                return;
+            }
+
             ws.send(JSON.stringify(message));
+            console.log('Message sent:', message);
             input.value = '';
             input.style.height = 'auto';
 
