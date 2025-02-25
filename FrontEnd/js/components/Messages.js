@@ -2,6 +2,7 @@ import messageStore from '../store/messageStore.js';
 import { formatTimestamp } from '../utils/time.js';
 import { throttle } from '../utils/throttle.js';
 import userStore from '../store/userStore.js';
+import { initNotifications } from './notifications.js';
 
 const socket = new WebSocket("ws://localhost:8080/ws");
 
