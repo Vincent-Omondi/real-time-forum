@@ -68,7 +68,7 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // APIRoutes sets up all API routes under the /api prefix
-func APIRoutes(db *sql.DB) {
+func APIRoutes(db *sql.DB, hub *websockets.MessageHub) {
 	// Controllers and Handlers
 	authController := controllers.NewAuthController(db)
 	postController := controllers.NewPostController(db)
@@ -274,7 +274,7 @@ func APIRoutes(db *sql.DB) {
 	http.Handle("/ws", middleware.ApplyMiddleware(
 		&WebSocketHandler{
 			Db:  db,
-			Hub: websockets.NewMessageHub(db),
+			Hub: hub,
 		},
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
