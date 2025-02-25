@@ -15,7 +15,10 @@ import (
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/routes"
+	"github.com/Vincent-Omondi/real-time-forum/BackEnd/websockets"
 )
+
+var globalHub *websockets.MessageHub
 
 func main() {
 	// Initialize logger
@@ -68,13 +71,19 @@ func main() {
 		MaxHeaderBytes:    1 << 20,          // Max size of request headers (1 MB)
 	}
 
+	// Create a single MessageHub instance
+	globalHub = websockets.NewMessageHub(db)
+	// Start the hub's processing goroutine
+	go globalHub.Run()
+	
+
 	// Register routes in the correct order
 	// 1. First serve static files
 	routes.ServeStaticFolder()
 
 	// 2. Register API routes
-	routes.APIRoutes(db)
-
+	routes.APIRoutes(db, globalHub)
+	
 	// 3. Register OAuth routes (these don't need /api prefix)
 	routes.UserRegAndLogin(db)
 

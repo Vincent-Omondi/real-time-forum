@@ -43,7 +43,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Error("No session token cookie found: %v", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "Unauthorized",
 				"status":  "error",
 				"message": "No session token found. Please log in.",
@@ -57,16 +57,18 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			logger.Error("Invalid session token")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "Unauthorized",
 				"status":  "error",
 				"message": "Invalid or expired session. Please log in again.",
 			})
 			return
 		}
+		
 
 		// Add userID to context
 		ctx := context.WithValue(r.Context(), "userID", userID)
+		
 		logger.Info("AuthMiddleware: Added userID %d to context", userID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))

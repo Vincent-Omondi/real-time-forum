@@ -9,15 +9,31 @@ import (
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/handlers"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/middleware"
+	"github.com/Vincent-Omondi/real-time-forum/BackEnd/websockets"
 	"github.com/gorilla/websocket"
 )
 
-// Add WebSocket handler type
 type WebSocketHandler struct {
-	db *sql.DB
+	Db  *sql.DB
+	Hub *websockets.MessageHub
 }
 
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger.Info("Attempting WebSocket connection from %s", r.RemoteAddr)
+	// Get userID from context using a type switch
+	uid := r.Context().Value("userID")
+	var userID int64
+	switch v := uid.(type) {
+	case int:
+		userID = int64(v)
+	case int64:
+		userID = v
+	default:
+		logger.Error("Failed to get userID from context; invalid type: %T", uid)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -26,32 +42,33 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return true // Allow all origins in development
 		},
 	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("Failed to upgrade to WebSocket: %v", err)
 		return
 	}
-	defer conn.Close()
 
-	// Handle WebSocket connection
-	for {
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			logger.Error("WebSocket read error: %v", err)
-			return
-		}
+	logger.Info("WebSocket connection established with userID: %d", userID)
 
-		// Echo the message back for now
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			logger.Error("WebSocket write error: %v", err)
-			return
-		}
+	// Create new client using the properly typed userID
+	client := &websockets.Client{
+		Hub:      h.Hub,
+		Conn:     conn,
+		Send:     make(chan []byte, 256),
+		UserID:   userID,
+		IsOnline: true,
 	}
+
+	// Register client with hub
+	h.Hub.Register <- client
+
+	// Start client routines
+	go client.WritePump()
+	go client.ReadPump()
 }
 
 // APIRoutes sets up all API routes under the /api prefix
-func APIRoutes(db *sql.DB) {
+func APIRoutes(db *sql.DB, hub *websockets.MessageHub) {
 	// Controllers and Handlers
 	authController := controllers.NewAuthController(db)
 	postController := controllers.NewPostController(db)
@@ -59,6 +76,7 @@ func APIRoutes(db *sql.DB) {
 	likesController := controllers.NewLikesController(db)
 	commentVotesController := controllers.NewCommentVotesController(db)
 	profileHandler := handlers.NewProfileHandler(db)
+	messageController := controllers.NewMessageController(db)
 
 	// Rate limiters
 	authLimiter := middleware.NewRateLimiter(5, time.Minute)     // 5 attempts per minute
@@ -235,10 +253,49 @@ func APIRoutes(db *sql.DB) {
 		middleware.ValidatePathAndMethod("/api/user/likes", http.MethodGet),
 	))
 
-	// WebSocket route
-	http.Handle("/ws", middleware.ApplyMiddleware(
-		&WebSocketHandler{db: db},
+	// Message routes
+	http.Handle("/api/messages/conversations", middleware.ApplyMiddleware(
+		handlers.GetConversationsHandler(messageController),
+		middleware.AuthMiddleware,
 		middleware.SetCSPHeaders,
 		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
 	))
+
+	http.Handle("/api/messages/{userId}", middleware.ApplyMiddleware(
+		handlers.GetMessagesHandler(messageController),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+	))
+
+	// WebSocket route
+	http.Handle("/ws", middleware.ApplyMiddleware(
+		&WebSocketHandler{
+			Db:  db,
+			Hub: hub,
+		},
+		middleware.SetCSPHeaders,
+		middleware.CORSMiddleware,
+		middleware.AuthMiddleware,
+	))
+	// User list route (returns registered users)
+	http.Handle("/api/users", middleware.ApplyMiddleware(
+		controllers.GetUsers(db),
+		middleware.SetCSPHeaders,
+		middleware.CORSMiddleware,
+		middleware.AuthMiddleware, // Protect the endpoint if needed
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/users", http.MethodGet),
+	))
+
+	http.Handle("/api/users/", middleware.ApplyMiddleware(
+		controllers.GetUserById(db),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+	))
+
 }
