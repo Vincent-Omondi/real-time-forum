@@ -46,14 +46,17 @@ func NewMessageHub(db *sql.DB) *MessageHub {
 }
 
 func (h *MessageHub) Run() {
+	logger.Info("WebSocket MessageHub is running...")
 	for {
 		select {
 		case client := <-h.Register:
+			logger.Info("Registering new WebSocket client: %d", client.UserID)
 			h.Clients[client] = true
 			// Update user status to online
 			h.updateUserStatus(client.UserID, true)
 
 		case client := <-h.Unregister:
+			logger.Info("Unregistering WebSocket client: %d", client.UserID)
 			if _, ok := h.Clients[client]; ok {
 				delete(h.Clients, client)
 				close(client.Send)
@@ -62,6 +65,7 @@ func (h *MessageHub) Run() {
 			}
 
 		case message := <-h.Broadcast:
+			logger.Info("Broadcasting WebSocket message: %+v", message)
 			h.handleMessage(message)
 		}
 	}

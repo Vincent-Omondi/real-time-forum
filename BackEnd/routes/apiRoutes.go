@@ -19,6 +19,7 @@ type WebSocketHandler struct {
 }
 
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger.Info("Attempting WebSocket connection from %s", r.RemoteAddr)
 	// Get userID from context using a type switch
 	uid := r.Context().Value("userID")
 	var userID int64
@@ -46,6 +47,8 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to upgrade to WebSocket: %v", err)
 		return
 	}
+
+	logger.Info("WebSocket connection established with userID: %d", userID)
 
 	// Create new client using the properly typed userID
 	client := &websockets.Client{
