@@ -13,15 +13,31 @@ export class Auth {
     // we rely on userStore.isAuthenticated() for current auth status.
     this.checkAuthStatus();
   }
-
+  // updateAuthCheckTimestamp
   /**
    * Checks the current authentication status by calling the backend API.
    * If the user is logged in, the returned user info is added/updated in userStore,
    * and the user is authenticated via userStore.
    * Also, CSRF token is stored for subsequent requests.
+   * 
+   * Now uses userStore's caching mechanism to avoid redundant API calls.
    */
   async checkAuthStatus() {
     try {
+      // If auth was checked recently and cache is still valid, skip the API call
+      if (!userStore.shouldCheckAuth()) {
+        console.log('Using cached authentication state');
+        const isAuthenticated = userStore.isAuthenticated();
+        updateUIBasedOnAuth(isAuthenticated);
+        
+        if (!isAuthenticated && !this.isPublicPath()) {
+          this.redirectToLogin();
+        }
+        
+        return isAuthenticated;
+      }
+      
+      console.log('Checking auth status with backend');
       const response = await fetch('/api/check-auth', {
         method: 'GET',
         credentials: 'include',
@@ -68,24 +84,38 @@ export class Auth {
           }
           userStore.authenticateUser(data.user.id);
         }
+      } else {
+        // User is not authenticated, but we've checked - update the timestamp
+        userStore.updateAuthCheckTimestamp();
       }
 
       const isAuthenticated = userStore.isAuthenticated();
       if (!isAuthenticated && !this.isPublicPath()) {
-        if (window.router) {
-          window.router.navigateTo('/login');
-        } else {
-          window.location.href = new URL('/login', window.location.origin).href;
-        }
+        this.redirectToLogin();
       } else if (isAuthenticated) {
         this.updateUserSection();
       }
 
       updateUIBasedOnAuth(isAuthenticated);
+      return isAuthenticated;
 
     } catch (error) {
       console.error('Auth check failed:', error);
+      // Even on error, update the timestamp to prevent repeated failed calls
+      userStore.updateAuthCheckTimestamp();
       updateUIBasedOnAuth(false);
+      return false;
+    }
+  }
+
+  /**
+   * Redirects user to login page using router if available, or location redirect.
+   */
+  redirectToLogin() {
+    if (window.router) {
+      window.router.navigateTo('/login');
+    } else {
+      window.location.href = new URL('/login', window.location.origin).href;
     }
   }
 
@@ -354,7 +384,7 @@ export class Auth {
       // Clear CSRF token and update userStore state
       localStorage.removeItem('csrfToken');
       document.querySelector('meta[name="csrf-token"]')?.remove();
-      userStore.logout();
+      userStore.logout(); // This will update the timestamp too
       voteStore.clearVotes();
       
       if (window.router) {
