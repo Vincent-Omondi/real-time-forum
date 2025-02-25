@@ -64,7 +64,6 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go client.ReadPump()
 }
 
-
 // APIRoutes sets up all API routes under the /api prefix
 func APIRoutes(db *sql.DB) {
 	// Controllers and Handlers
@@ -286,6 +285,14 @@ func APIRoutes(db *sql.DB) {
 		middleware.AuthMiddleware, // Protect the endpoint if needed
 		middleware.ErrorHandler(handlers.ServeErrorPage),
 		middleware.ValidatePathAndMethod("/api/users", http.MethodGet),
+	))
+
+	http.Handle("/api/users/", middleware.ApplyMiddleware(
+		controllers.GetUserById(db),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
 	))
 
 }
