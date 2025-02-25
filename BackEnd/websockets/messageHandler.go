@@ -92,25 +92,40 @@ func (h *MessageHub) handleMessage(message *Message) {
 }
 
 func (h *MessageHub) updateUserStatus(userID int64, isOnline bool) error {
-	currentTime := time.Now().UTC()
-
-	// Single query to update or insert
-	_, err := h.Db.Exec(`
-		INSERT INTO user_status (user_id, is_online, last_seen)
-		VALUES (?, ?, ?)
-		ON CONFLICT(user_id) DO UPDATE SET
-		is_online = ?,
-		last_seen = CASE 
-			WHEN is_online = false OR is_online <> ? THEN ?
-			ELSE last_seen 
-		END
-	`, userID, isOnline, currentTime, isOnline, isOnline, currentTime)
-
-	if err != nil {
-		logger.Error("Failed to update user status: %v", err)
-		return err
-	}
-	return nil
+    currentTime := time.Now().UTC()
+    
+    // First try to update existing record
+    result, err := h.Db.Exec(`
+        UPDATE user_status 
+        SET is_online = ?,
+            last_seen = CASE 
+                WHEN is_online = 0 OR is_online <> ? THEN ?
+                ELSE last_seen 
+            END
+        WHERE user_id = ?
+    `, isOnline, isOnline, currentTime, userID)
+    
+    if err != nil {
+        logger.Error("Failed to update user status: %v", err)
+        return err
+    }
+    
+    // Check if any rows were affected
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected == 0 {
+        // No existing record, insert a new one
+        _, err = h.Db.Exec(`
+            INSERT INTO user_status (user_id, is_online, last_seen)
+            VALUES (?, ?, ?)
+        `, userID, isOnline, currentTime)
+        
+        if err != nil {
+            logger.Error("Failed to insert user status: %v", err)
+            return err
+        }
+    }
+    
+    return nil
 }
 
 func (h *MessageHub) storeMessage(message *Message) error {
