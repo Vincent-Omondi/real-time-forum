@@ -1,13 +1,23 @@
 import { Auth } from "../components/auth.js";
+import userStore from "../store/userStore.js";
 
 /**
  * Checks the current authentication status using the Auth class.
- * This function instantiates Auth and calls its checkAuthStatus() method,
- * which handles the backend auth check and triggers UI updates.
+ * This function uses the userStore's caching mechanism to prevent redundant auth checks.
+ * It only calls the backend when necessary based on cache expiration.
  */
 async function checkAuthStatus() {
-  const auth = new Auth();
-  await auth.checkAuthStatus();
+  // Check if we need to fetch fresh auth data based on cache expiry
+  if (userStore.shouldCheckAuth()) {
+    console.log("Auth cache expired or not initialized, checking with backend...");
+    const auth = new Auth();
+    await auth.checkAuthStatus();
+  } else {
+    console.log("Using cached auth status...");
+    // Even though we're using cached data, still update UI
+    const isAuthenticated = userStore.isAuthenticated();
+    updateUIBasedOnAuth(isAuthenticated);
+  }
 }
 
 /**
@@ -39,12 +49,23 @@ export function updateUIBasedOnAuth(isAuthenticated) {
     [sidebar, mainContent, searchBar, navActions, themeToggle].forEach(el => el?.classList.remove('hidden'));
   } else {
     // If not authenticated, remove all key UI elements and redirect to login.
-    [sidebar, mainContent, searchBar, navActions, themeToggle].forEach(el => el?.remove());
+    // Use the Router if available for a smoother transition
     if (!isAuthPage) {
-      window.location.href = "/login";
+      if (window.router) {
+        window.router.navigateTo("/login");
+      } else {
+        window.location.href = "/login";
+      }
     }
+    
+    // Hide UI elements instead of removing them - this is gentler and allows them
+    // to be restored if the user logs in without a page refresh
+    [sidebar, searchBar, navActions, themeToggle].forEach(el => el?.classList.add('hidden'));
   }
 }
 
 // Run authentication check once the DOM has fully loaded.
 document.addEventListener("DOMContentLoaded", checkAuthStatus);
+
+// Export checkAuthStatus to allow manual auth refresh when needed
+export { checkAuthStatus };
