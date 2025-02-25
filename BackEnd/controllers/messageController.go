@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
@@ -148,7 +150,7 @@ func GetUsers(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Set response type to JSON
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		// Query the database for users (adjust the query/columns as needed)
 		rows, err := db.Query("SELECT id, nickname FROM users")
 		if err != nil {
@@ -180,3 +182,56 @@ func GetUsers(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+func GetUserById(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		path := r.URL.Path
+		parts := strings.Split(path, "/")
+		if len(parts) < 4 {
+			http.Error(w, "Invalid URL", http.StatusBadRequest)
+			return
+		}
+		userId := parts[len(parts)-1]
+
+		id, err := strconv.ParseInt(userId, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid user ID", http.StatusBadRequest)
+			return
+		}
+
+		var user struct {
+			ID       int64  `json:"id"`
+			Nickname string `json:"nickname"`
+			IsOnline bool   `json:"is_online"`
+			LastSeen string `json:"last_seen"`
+		}
+
+		err = db.QueryRow(`
+			SELECT u.id, u.nickname, 
+				   COALESCE(us.is_online, false) as is_online,
+				   CASE 
+					   WHEN us.is_online = true THEN datetime('now')
+					   ELSE COALESCE(datetime(us.last_seen), datetime('now'))
+				   END as last_seen
+			FROM users u
+			LEFT JOIN user_status us ON us.user_id = u.id
+			WHERE u.id = ?`, id).Scan(&user.ID, &user.Nickname, &user.IsOnline, &user.LastSeen)
+
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.Error(w, "User not found", http.StatusNotFound)
+				return
+			}
+			logger.Error("Failed to fetch user: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := json.NewEncoder(w).Encode(user); err != nil {
+			logger.Error("Failed to encode response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+}
