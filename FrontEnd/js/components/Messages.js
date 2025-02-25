@@ -83,9 +83,7 @@ export class MessagesView {
                 }
             });
 
-            console.log('Response status:', response.status);
             const responseText = await response.text();
-            console.log('Response text:', responseText);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -296,12 +294,8 @@ export class MessagesView {
         const content = input.value.trim();
         if (!content || !this.messageStore.currentConversation) return;
 
-        console.log('Current conversation ID:', this.messageStore.currentConversation);
-
         const receiverId = parseInt(this.messageStore.currentConversation);
         const currentUser = userStore.getCurrentUser();
-
-        console.log('User data from localStorage:', currentUser);
 
         const message = {
             type: 'message',
@@ -310,7 +304,6 @@ export class MessagesView {
             sender_id: currentUser.id,
             timestamp: new Date()
         };
-        console.log('Prepared message object:', message);
 
         try {
             const ws = await this.getWebSocket();
@@ -324,7 +317,6 @@ export class MessagesView {
             }
 
             ws.send(JSON.stringify(message));
-            console.log('Message sent:', message);
             input.value = '';
             input.style.height = 'auto';
 
