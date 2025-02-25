@@ -1,8 +1,11 @@
 import messageStore from '../store/messageStore.js';
 import { formatTimestamp } from '../utils/time.js';
 import { throttle } from '../utils/throttle.js';
+import userStore from '../store/userStore.js';
+import { initNotifications } from './notifications.js';
 
 const socket = new WebSocket("ws://localhost:8080/ws");
+
 
 socket.onopen = () => {
     console.log("WebSocket connected");
@@ -80,9 +83,7 @@ export class MessagesView {
                 }
             });
 
-            console.log('Response status:', response.status);
             const responseText = await response.text();
-            console.log('Response text:', responseText);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -236,7 +237,7 @@ export class MessagesView {
     renderMessages(userId) {
         const messagesList = document.querySelector('.messages-list');
         const messages = this.messageStore.messages.get(userId) || [];
-        const currentUser = JSON.parse(localStorage.getItem('user'));
+        const currentUser = userStore.getCurrentUser();
 
         messagesList.innerHTML = messages.map(msg => `
             <div class="message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}">
@@ -294,7 +295,7 @@ export class MessagesView {
         if (!content || !this.messageStore.currentConversation) return;
 
         const receiverId = parseInt(this.messageStore.currentConversation);
-        const currentUser = JSON.parse(localStorage.getItem('user'));
+        const currentUser = userStore.getCurrentUser();
 
         const message = {
             type: 'message',
@@ -306,6 +307,15 @@ export class MessagesView {
 
         try {
             const ws = await this.getWebSocket();
+
+            console.log('WebSocket status:', ws ? ws.readyState : 'No WebSocket');
+        
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.error('WebSocket not connected');
+                alert('Could not connect to the messaging server. Please try again later.');
+                return;
+            }
+
             ws.send(JSON.stringify(message));
             input.value = '';
             input.style.height = 'auto';
@@ -326,7 +336,7 @@ export class MessagesView {
 
     async getWebSocket() {
         // Don't try to connect if user is not logged in
-        const user = JSON.parse(localStorage.getItem('user'));
+        const user = userStore.getCurrentUser();
         if (!user) {
             return null;
         }
@@ -383,7 +393,7 @@ export class MessagesView {
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
             // Only attempt to reconnect if user is logged in
-            const user = JSON.parse(localStorage.getItem('user'));
+            const user = userStore.getCurrentUser();
             if (user) {
                 setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
             }
@@ -391,7 +401,7 @@ export class MessagesView {
 
         ws.onclose = () => {
             // Only attempt to reconnect if user is logged in
-            const user = JSON.parse(localStorage.getItem('user'));
+            const user = userStore.getCurrentUser();
             if (user) {
                 setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
             }

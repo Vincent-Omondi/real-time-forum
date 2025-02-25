@@ -70,7 +70,7 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
             u.id as user_id,
             u.nickname as username,
             COALESCE(us.is_online, false) as is_online,
-            COALESCE(us.last_seen, CURRENT_TIMESTAMP) as last_seen,
+            COALESCE(strftime('%Y-%m-%d %H:%M:%f', us.last_seen), CURRENT_TIMESTAMP) as last_seen,
             (
                 SELECT content 
                 FROM messages m2 
@@ -98,7 +98,7 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
         WHERE m.sender_id = ? OR m.receiver_id = ?
         GROUP BY u.id
         ORDER BY last_message_time DESC NULLS LAST
-    `
+	`
 
 	rows, err := mc.db.Query(query, userID, userID, userID, userID, userID, userID, userID)
 	if err != nil {
@@ -111,12 +111,13 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
 		var conv Conversation
 		var lastMessage sql.NullString
 		var lastMessageTime sql.NullTime
+		var lastSeenStr string  // temporary variable to capture the string value
 
 		err := rows.Scan(
 			&conv.OtherUserID,
 			&conv.Username,
 			&conv.IsOnline,
-			&conv.LastSeen,
+			&lastSeenStr, // scan into string instead of time.Time
 			&lastMessage,
 			&lastMessageTime,
 		)
@@ -124,7 +125,17 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
 			return nil, fmt.Errorf("failed to scan conversation: %v", err)
 		}
 
-		// Handle null values
+		// Parse the last_seen string into a time.Time value.
+		parsedTime, err := time.Parse("2006-01-02 15:04:05.000000", lastSeenStr)
+		if err != nil {
+			// If the layout doesn't match, try a simpler layout or default to time.Now()
+			parsedTime, err = time.Parse("2006-01-02 15:04:05", lastSeenStr)
+			if err != nil {
+				parsedTime = time.Now()
+			}
+		}
+		conv.LastSeen = parsedTime
+
 		if lastMessage.Valid {
 			conv.LastMessage = lastMessage.String
 		}
