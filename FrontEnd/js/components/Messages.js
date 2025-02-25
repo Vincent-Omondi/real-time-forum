@@ -2,6 +2,21 @@ import messageStore from '../store/messageStore.js';
 import { formatTimestamp } from '../utils/time.js';
 import { throttle } from '../utils/throttle.js';
 
+const socket = new WebSocket("ws://localhost:8080/ws");
+
+socket.onopen = () => {
+    console.log("WebSocket connected");
+};
+
+socket.onerror = (error) => {
+    console.error("WebSocket Error:", error);
+};
+
+socket.onclose = (event) => {
+    console.warn("WebSocket closed:", event);
+};
+
+
 export class MessagesView {
     constructor() {
         this.currentPage = 1;
