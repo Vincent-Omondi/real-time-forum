@@ -88,14 +88,25 @@ func (h *MessageHub) handleMessage(message *Message) {
 }
 
 func (h *MessageHub) updateUserStatus(userID int64, isOnline bool) error {
+	currentTime := time.Now().UTC()
+
+	// Single query to update or insert
 	_, err := h.Db.Exec(`
 		INSERT INTO user_status (user_id, is_online, last_seen)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
+		VALUES (?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
 		is_online = ?,
-		last_seen = CURRENT_TIMESTAMP
-	`, userID, isOnline, isOnline)
-	return err
+		last_seen = CASE 
+			WHEN is_online = false OR is_online <> ? THEN ?
+			ELSE last_seen 
+		END
+	`, userID, isOnline, currentTime, isOnline, isOnline, currentTime)
+
+	if err != nil {
+		logger.Error("Failed to update user status: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (h *MessageHub) storeMessage(message *Message) error {
@@ -162,6 +173,8 @@ func (c *Client) ReadPump() {
 	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		// Update last activity time on successful pong
+		c.Hub.updateUserStatus(c.UserID, true)
 		return nil
 	})
 
