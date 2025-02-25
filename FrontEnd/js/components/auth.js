@@ -324,6 +324,11 @@ export class Auth {
    */
   async logout() {
     try {
+      // Close WebSocket connection if it exists
+      if (window.mainContent && window.mainContent.messagesView) {
+        window.mainContent.messagesView.closeWebSocket();
+      }
+
       // Get CSRF token from localStorage or meta tag
       const csrfToken = localStorage.getItem('csrfToken') || 
                        document.querySelector('meta[name="csrf-token"]')?.content;
