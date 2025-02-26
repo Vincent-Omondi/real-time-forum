@@ -5,7 +5,7 @@
  */
 export function formatTimestamp(timestamp) {
     // Convert UTC string to local time
-    const date = new Date(timestamp + 'Z'); // Append 'Z' to ensure UTC parsing
+    const date = new Date(timestamp); 
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
 

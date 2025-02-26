@@ -12,10 +12,31 @@
 }
 
 .contacts-header {
-    padding: 20px;
+    display: flex;
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border-color);
+    justify-content: space-between;
+    align-items: center;
 }
 
+.new-conversation-btn {
+    border: 1px solid var(--border-color);
+    background: transparent;
+    padding: 4px 12px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    min-width: 25px;
+    justify-content: center;
+    font-size: 1.5em;
+}
+
+.new-conversation-btn:hover {
+    border-color: var(--accent-color);
+    background: var(--hover-bg);
+}
 .contacts-list {
     flex: 1;
     overflow-y: auto;
