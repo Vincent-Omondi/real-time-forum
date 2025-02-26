@@ -11,6 +11,11 @@ import { MainContent } from './components/MainContent.js';
 import { Auth } from './components/auth.js';
 import userStore from './store/userStore.js';
 import { MessagesView } from './components/Messages.js';
+import { 
+    getWebSocket, 
+    closeWebSocket, 
+    registerNotificationHandler 
+} from './store/ websocketManager.js';
 
 let authInitialized = false;
 
@@ -190,6 +195,10 @@ async function logoutUser() {
   try {
     const auth = new Auth();
     await auth.logout();
+    
+    // Close WebSocket connection when user logs out
+    closeWebSocket();
+    
   } catch (error) {
     console.error('Logout failed:', error);
     // If logout fails, try to redirect to login anyway
@@ -377,23 +386,18 @@ class Router {
 }
 
 /**
- * Initializes a WebSocket connection to listen for notifications.
- * Dispatches incoming messages to the appropriate notifications handler.
+ * Setup notifications to handle websocket messages
  */
-function initWebSocket() {
-  const ws = new WebSocket('ws://' + window.location.host + '/ws');
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    switch (data.type) {
-      case 'message':
-        initNotifications().newMessage(data);
-        break;
-      case 'notification':
-        initNotifications().newNotification(data);
-        break;
+function setupNotificationHandlers() {
+  const notifications = initNotifications();
+  
+  // Register notification handler with the WebSocket manager
+  registerNotificationHandler((data) => {
+    // Handle notification messages
+    if (data.type === 'notification') {
+      notifications.newNotification(data);
     }
-  };
-  return ws;
+  });
 }
 
 // Application initialization: renders global layout and starts router, WebSocket, and theme.
@@ -424,9 +428,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Start the router, WebSocket, and theme initialization if the current path is public or user is authenticated.
   if (isAuthenticated || isPublicPath(window.location.pathname)) {
     window.router = new Router(routes, mainContent); // Pass mainContent to Router
-    const ws = initWebSocket();
+    
+    // Initialize the WebSocket only if authenticated
+    if (isAuthenticated) {
+      // Get WebSocket instance from manager instead of creating directly
+      const ws = getWebSocket();
+      
+      // Set up notification handlers for WebSocket messages
+      setupNotificationHandlers();
+    }
+    
     initTheme();
-    window.forumWS = ws;
   } else {
     window.location.href = '/login';
   }
