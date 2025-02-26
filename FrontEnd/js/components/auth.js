@@ -2,6 +2,7 @@ import userStore from '../store/userStore.js';
 import { updateUIBasedOnAuth } from '../utils/uiUtils.js';
 import { initializeVoteStates, clearVoteStates } from '../utils/voteUtils.js';
 import voteStore from '../store/voteStore.js';
+import { authStateManager } from '../store/authStateManager.js';
 
 /**
  * Auth component for handling authentication.
@@ -9,11 +10,9 @@ import voteStore from '../store/voteStore.js';
  */
 export class Auth {
   constructor() {
-    // Instead of maintaining a local isAuthenticated flag,
-    // we rely on userStore.isAuthenticated() for current auth status.
-    this.checkAuthStatus();
+    // Remove the immediate auth check from constructor
   }
-  // updateAuthCheckTimestamp
+
   /**
    * Checks the current authentication status by calling the backend API.
    * If the user is logged in, the returned user info is added/updated in userStore,
@@ -23,89 +22,7 @@ export class Auth {
    * Now uses userStore's caching mechanism to avoid redundant API calls.
    */
   async checkAuthStatus() {
-    try {
-      // If auth was checked recently and cache is still valid, skip the API call
-      if (!userStore.shouldCheckAuth()) {
-        console.log('Using cached authentication state');
-        const isAuthenticated = userStore.isAuthenticated();
-        updateUIBasedOnAuth(isAuthenticated);
-        
-        if (!isAuthenticated && !this.isPublicPath()) {
-          this.redirectToLogin();
-        }
-        
-        return isAuthenticated;
-      }
-      
-      console.log('Checking auth status with backend');
-      const response = await fetch('/api/check-auth', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      let data;
-      try {
-        data = await response.json();
-      } catch (error) {
-        console.error("Failed to parse JSON response", error);
-        data = null;
-      }
-
-      // If logged in and backend provides CSRF token
-      if (data?.loggedIn && data?.csrfToken) {
-        // Update CSRF token in localStorage and in a meta tag
-        localStorage.setItem('csrfToken', data.csrfToken);
-        let metaTag = document.querySelector('meta[name="csrf-token"]');
-        if (!metaTag) {
-          metaTag = document.createElement('meta');
-          metaTag.setAttribute('name', 'csrf-token');
-          document.head.appendChild(metaTag);
-        }
-        metaTag.setAttribute('content', data.csrfToken);
-
-        // Create basic user object from userID if no full user object provided
-        if (data.userID && !data.user) {
-          data.user = { id: data.userID };
-        }
-
-        // Update userStore if user data is provided
-        if (data.user) {
-          if (!userStore.getUser(data.user.id)) {
-            userStore.addUser(data.user);
-          } else {
-            userStore.updateUser(data.user.id, data.user);
-          }
-          userStore.authenticateUser(data.user.id);
-        }
-      } else {
-        // User is not authenticated, but we've checked - update the timestamp
-        userStore.updateAuthCheckTimestamp();
-      }
-
-      const isAuthenticated = userStore.isAuthenticated();
-      if (!isAuthenticated && !this.isPublicPath()) {
-        this.redirectToLogin();
-      } else if (isAuthenticated) {
-        this.updateUserSection();
-      }
-
-      updateUIBasedOnAuth(isAuthenticated);
-      return isAuthenticated;
-
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      // Even on error, update the timestamp to prevent repeated failed calls
-      userStore.updateAuthCheckTimestamp();
-      updateUIBasedOnAuth(false);
-      return false;
-    }
+    return authStateManager.checkAuth();
   }
 
   /**
@@ -355,24 +272,18 @@ export class Auth {
   async logout() {
     try {
       // Close WebSocket connection if it exists
-      if (window.mainContent && window.mainContent.messagesView) {
+      if (window.mainContent?.messagesView) {
         window.mainContent.messagesView.closeWebSocket();
       }
 
-      // Get CSRF token from localStorage or meta tag
-      const csrfToken = localStorage.getItem('csrfToken') || 
-                       document.querySelector('meta[name="csrf-token"]')?.content;
+      const csrfToken = authStateManager.getCSRFToken();
       
-      if (!csrfToken) {
-        console.warn('No CSRF token found for logout request');
-      }
-
       const response = await fetch('/api/logout', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken || '' // Include token if available
+          'X-CSRF-Token': csrfToken || ''
         }
       });
 
@@ -381,11 +292,7 @@ export class Auth {
         throw new Error(errorData.message || 'Logout failed');
       }
       
-      // Clear CSRF token and update userStore state
-      localStorage.removeItem('csrfToken');
-      document.querySelector('meta[name="csrf-token"]')?.remove();
-      userStore.logout(); // This will update the timestamp too
-      voteStore.clearVotes();
+      authStateManager.clearAuth();
       
       if (window.router) {
         window.router.navigateTo('/login');

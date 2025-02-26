@@ -4,22 +4,6 @@ import { throttle } from '../utils/throttle.js';
 import userStore from '../store/userStore.js';
 import { initNotifications } from './notifications.js';
 
-const socket = new WebSocket("ws://localhost:8080/ws");
-
-
-socket.onopen = () => {
-    console.log("WebSocket connected");
-};
-
-socket.onerror = (error) => {
-    console.error("WebSocket Error:", error);
-};
-
-socket.onclose = (event) => {
-    console.warn("WebSocket closed:", event);
-};
-
-
 export class MessagesView {
     constructor() {
         this.currentPage = 1;
@@ -27,6 +11,14 @@ export class MessagesView {
         this.loadMoreThrottled = throttle(this.loadMoreMessages.bind(this), 1000);
         this.messageStore = messageStore;
         this.ws = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.setupEventListeners();
+        
+        // Only setup WebSocket if user is authenticated
+        if (userStore.isAuthenticated()) {
+            this.setupWebSocket();
+        }
     }
 
     async loadMoreMessages(userId) {
@@ -37,8 +29,7 @@ export class MessagesView {
     }
 
     async render() {
-        const container = document.querySelector('.main-content');
-        container.innerHTML = `
+        const template = `
             <div class="messages-container">
                 <div class="contacts-sidebar">
                     <div class="contacts-header">
@@ -63,9 +54,27 @@ export class MessagesView {
             </div>
         `;
 
-        await this.loadConversations();
+        const element = document.createElement('div');
+        element.innerHTML = template;
+
+        // Store references to DOM elements
+        this.contactsList = element.querySelector('.contacts-list');
+        this.messagesList = element.querySelector('.messages-list');
+        this.messageForm = element.querySelector('.message-input-form');
+        this.messageInput = element.querySelector('.message-input');
+        this.chatHeader = element.querySelector('.chat-header');
+        this.messageInputContainer = element.querySelector('.message-input-container');
+
+        // Setup event listeners after DOM elements are created
         this.setupEventListeners();
+        
+        // Load initial data
+        await this.loadConversations();
+        
+        // Setup WebSocket
         this.setupWebSocket();
+
+        return element;
     }
 
     async loadConversations() {
@@ -111,21 +120,27 @@ export class MessagesView {
     }
 
     renderConversationList() {
-        const contactsList = document.querySelector('.contacts-list');
+        if (!this.contactsList) {
+            console.warn('Contacts list element not found');
+            return;
+        }
+
         const conversations = this.messageStore.conversations;
         
         if (conversations.length === 0) {
-            // Show a placeholder with a "Start New Conversation" button
-            contactsList.innerHTML = `
+            this.contactsList.innerHTML = `
                 <div class="no-conversations">
                     <p>No conversations yet.</p>
                     <button id="start-new-conversation">Start a New Conversation</button>
                 </div>
             `;
-            document.getElementById('start-new-conversation')
-                .addEventListener('click', () => this.showUserSearchModal());
+            
+            const startButton = this.contactsList.querySelector('#start-new-conversation');
+            if (startButton) {
+                startButton.addEventListener('click', () => this.showUserSearchModal());
+            }
         } else {
-            contactsList.innerHTML = conversations.map(conv => `
+            this.contactsList.innerHTML = conversations.map(conv => `
                 <div class="contact-item" data-user-id="${conv.other_user_id}">
                     <div class="contact-avatar">
                         ${conv.username.charAt(0).toUpperCase()}
@@ -139,6 +154,16 @@ export class MessagesView {
                     </div>
                 </div>
             `).join('');
+
+            // Add click handlers to conversation items
+            this.contactsList.querySelectorAll('.contact-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const userId = item.dataset.userId;
+                    if (userId) {
+                        this.selectConversation(userId);
+                    }
+                });
+            });
         }
     }
 
@@ -250,26 +275,26 @@ export class MessagesView {
     }
 
     setupEventListeners() {
-        const contactsList = document.querySelector('.contacts-list');
-        const messageForm = document.querySelector('.message-input-form');
-        const messagesList = document.querySelector('.messages-list');
-        const messageInput = document.querySelector('.message-input');
+        if (!this.messageInput || !this.messageForm || !this.messagesList || !this.contactsList) {
+            console.warn('Required DOM elements not found for event listeners');
+            return;
+        }
 
         // Auto-resize textarea
-        messageInput.addEventListener('input', () => {
-            messageInput.style.height = 'auto';
-            messageInput.style.height = messageInput.scrollHeight + 'px';
+        this.messageInput.addEventListener('input', () => {
+            this.messageInput.style.height = 'auto';
+            this.messageInput.style.height = this.messageInput.scrollHeight + 'px';
         });
 
         // Handle enter key (send on Enter, new line on Shift+Enter)
-        messageInput.addEventListener('keydown', (e) => {
+        this.messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
             }
         });
 
-        contactsList.addEventListener('click', (e) => {
+        this.contactsList.addEventListener('click', (e) => {
             const contactItem = e.target.closest('.contact-item');
             if (contactItem) {
                 const userId = contactItem.dataset.userId;
@@ -277,13 +302,13 @@ export class MessagesView {
             }
         });
 
-        messageForm.addEventListener('submit', (e) => {
+        this.messageForm.addEventListener('submit', (e) => {
             e.preventDefault();
             this.sendMessage();
         });
 
-        messagesList.addEventListener('scroll', () => {
-            if (messagesList.scrollTop === 0 && this.messageStore.currentConversation) {
+        this.messagesList.addEventListener('scroll', () => {
+            if (this.messagesList.scrollTop === 0 && this.messageStore.currentConversation) {
                 this.loadMoreThrottled(this.messageStore.currentConversation);
             }
         });
@@ -335,21 +360,43 @@ export class MessagesView {
     }
 
     async getWebSocket() {
-        // Don't try to connect if user is not logged in
-        const user = userStore.getCurrentUser();
-        if (!user) {
+        // Check authentication status first
+        if (!userStore.isAuthenticated()) {
+            console.log('Not attempting WebSocket connection - user not authenticated');
             return null;
         }
 
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             try {
                 this.ws = await this.setupWebSocket();
+                
+                // Reset reconnect attempts on successful connection
+                if (this.ws) {
+                    this.reconnectAttempts = 0;
+                }
             } catch (error) {
                 console.error('WebSocket connection failed:', error);
+                this.handleConnectionError();
                 return null;
             }
         }
         return this.ws;
+    }
+
+    handleConnectionError() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.log('Max reconnection attempts reached');
+            return;
+        }
+
+        this.reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+        
+        setTimeout(() => {
+            if (userStore.isAuthenticated()) {
+                this.getWebSocket();
+            }
+        }, delay);
     }
 
     // Add method to close WebSocket
@@ -362,8 +409,30 @@ export class MessagesView {
     }
 
     setupWebSocket() {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            return this.ws;
+        }
+
         const ws = new WebSocket(`ws://${window.location.host}/ws`);
         
+        ws.onopen = () => {
+            console.log("WebSocket connected");
+            this.reconnectAttempts = 0;
+        };
+
+        ws.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            this.handleConnectionError();
+        };
+
+        ws.onclose = (event) => {
+            console.warn("WebSocket closed:", event);
+            this.ws = null;
+            if (userStore.isAuthenticated()) {
+                this.handleConnectionError();
+            }
+        };
+
         ws.onmessage = async (event) => {
             const message = JSON.parse(event.data);
             if (message.type === 'message') {
@@ -377,33 +446,14 @@ export class MessagesView {
                     this.renderMessages(conversationId);
                 }
                 
-                // Refresh conversations list
                 await this.loadConversations();
                 
-                // Show notification if not in current conversation
                 if (this.messageStore.currentConversation !== conversationId) {
                     initNotifications().newMessage({
                         sender: message.sender_name || 'Someone',
                         preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
                     });
                 }
-            }
-        };
-
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            // Only attempt to reconnect if user is logged in
-            const user = userStore.getCurrentUser();
-            if (user) {
-                setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
-            }
-        };
-
-        ws.onclose = () => {
-            // Only attempt to reconnect if user is logged in
-            const user = userStore.getCurrentUser();
-            if (user) {
-                setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
             }
         };
 
