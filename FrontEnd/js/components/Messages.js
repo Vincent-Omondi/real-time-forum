@@ -15,15 +15,23 @@ export class MessagesView {
     constructor() {
         this.currentPage = 1;
         this.isLoading = false;
+        this.hasMoreMessages = true;
         this.loadMoreThrottled = throttle(this.loadMoreMessages.bind(this), 1000);
         this.messageStore = messageStore;
         this.messageHandler = this.handleIncomingMessage.bind(this);
+        this.scrollPositionToMaintain = null;
     }
 
     async loadMoreMessages(userId) {
-        if (!userId || this.isLoading) return;
+        if (!userId || this.isLoading || !this.hasMoreMessages) return;
         
         const nextPage = this.currentPage + 1;
+        const messagesList = document.querySelector('.messages-list');
+        
+        // Remember scroll height before adding new messages
+        const prevScrollHeight = messagesList.scrollHeight;
+        this.scrollPositionToMaintain = prevScrollHeight;
+        
         await this.loadMessages(userId, nextPage);
     }
 
@@ -34,6 +42,7 @@ export class MessagesView {
                 <div class="contacts-sidebar">
                     <div class="contacts-header">
                         <h2>Messages</h2>
+                        <button class="new-conversation-btn">+</button>
                     </div>
                     <div class="contacts-list"></div>
                 </div>
@@ -208,16 +217,31 @@ export class MessagesView {
 
         try {
             const response = await fetch(`/api/messages/${userId}?page=${page}`);
-            const messages = await response.json();
+            const newMessages = await response.json();
             
-            if (page === 1) {
-                this.messageStore.setMessages(userId, messages);
-            } else {
-                const existing = this.messageStore.messages.get(userId) || [];
-                this.messageStore.setMessages(userId, [...messages, ...existing]);
+            // If we got fewer messages than expected, we've reached the end
+            if (newMessages.length === 0) {
+                this.hasMoreMessages = false;
             }
             
-            this.renderMessages(userId);
+            let updatedMessages;
+            if (page === 1) {
+                // First page - just set the messages
+                updatedMessages = newMessages;
+            } else {
+                // Additional pages - prepend to existing messages
+                const existing = this.messageStore.messages.get(userId) || [];
+                updatedMessages = [...newMessages, ...existing];
+            }
+            
+            // Sort all messages by timestamp to ensure correct order
+            updatedMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            
+            // Update the message store
+            this.messageStore.setMessages(userId, updatedMessages);
+            
+            // Render the messages
+            this.renderMessages(userId, page > 1);
             this.currentPage = page;
         } catch (error) {
             console.error('Error loading messages:', error);
@@ -226,26 +250,97 @@ export class MessagesView {
         }
     }
 
-    renderMessages(userId) {
+    renderMessages(userId, maintainScrollPosition = false) {
         const messagesList = document.querySelector('.messages-list');
         const messages = this.messageStore.messages.get(userId) || [];
         const currentUser = userStore.getCurrentUser();
 
-        messagesList.innerHTML = messages.map(msg => `
-            <div class="message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}">
-                <div class="message-content">${msg.content}</div>
-                <div class="message-time">${formatTimestamp(msg.created_at)}</div>
-            </div>
-        `).join('');
+        // Group messages by date for better visual separation
+        const groupedMessages = this.groupMessagesByDate(messages);
+        
+        let messagesHtml = '';
+        
+        // Generate HTML for each date group
+        Object.keys(groupedMessages).forEach(date => {
+            messagesHtml += `<div class="message-date-separator">${date}</div>`;
+            
+            groupedMessages[date].forEach(msg => {
+                // Check if this message is part of a sequence from the same sender
+                const isContinuation = this.isMessageContinuation(msg, groupedMessages[date]);
+                
+                messagesHtml += `
+                    <div class="message ${msg.sender_id === currentUser.id ? 'sent' : 'received'} ${isContinuation ? 'continuation' : ''}">
+                        <div class="message-content">${msg.content}</div>
+                        <div class="message-time">${formatTimestamp(msg.created_at, true)}</div>
+                    </div>
+                `;
+            });
+        });
+        
+        messagesList.innerHTML = messagesHtml;
+        
+        // Handle scroll position based on context
+        if (maintainScrollPosition && this.scrollPositionToMaintain) {
+            // When loading older messages, maintain scroll position
+            const newScrollHeight = messagesList.scrollHeight;
+            messagesList.scrollTop = newScrollHeight - this.scrollPositionToMaintain;
+            this.scrollPositionToMaintain = null;
+        } else {
+            // For new messages or initial load, scroll to bottom
+            messagesList.scrollTop = messagesList.scrollHeight;
+        }
+    }
+    
+    // Helper method to group messages by date
+    groupMessagesByDate(messages) {
+        const groups = {};
+        
+        messages.forEach(msg => {
+            const date = new Date(msg.created_at).toLocaleDateString();
+            if (!groups[date]) {
+                groups[date] = [];
+            }
+            groups[date].push(msg);
+        });
+        
+        return groups;
+    }
+    
+    // Helper method to determine if a message is part of a sequence
+    isMessageContinuation(message, messagesInGroup) {
+        const messageIndex = messagesInGroup.findIndex(m => 
+            m.id === message.id || m.temp_id === message.temp_id
+        );
+        
+        if (messageIndex <= 0) return false;
+        
+        const previousMessage = messagesInGroup[messageIndex - 1];
+        const timeDiff = new Date(message.created_at) - new Date(previousMessage.created_at);
+        const isFromSameSender = message.sender_id === previousMessage.sender_id;
+        
+        // If less than 2 minutes between messages from same sender, consider it a continuation
+        return isFromSameSender && timeDiff < 120000;
+    }
 
-        messagesList.scrollTop = messagesList.scrollHeight;
+    // Helper to find temporary message by ID
+    findTempMessageIndex(conversationId, tempId) {
+        if (!tempId) return -1;
+        
+        const messages = this.messageStore.messages.get(conversationId) || [];
+        return messages.findIndex(msg => msg.temp_id === tempId);
     }
 
     setupEventListeners() {
+        // Your existing method with a slight modification to the scroll handler
         const contactsList = document.querySelector('.contacts-list');
         const messageForm = document.querySelector('.message-input-form');
         const messagesList = document.querySelector('.messages-list');
         const messageInput = document.querySelector('.message-input');
+        const newConversationBtn = document.querySelector('.new-conversation-btn');
+
+        newConversationBtn.addEventListener('click', () => {
+            this.showUserSearchModal();
+        });
 
         // Auto-resize textarea
         messageInput.addEventListener('input', () => {
@@ -274,8 +369,12 @@ export class MessagesView {
             this.sendMessage();
         });
 
+        // Improved scroll handling - check if we're at the top
         messagesList.addEventListener('scroll', () => {
-            if (messagesList.scrollTop === 0 && this.messageStore.currentConversation) {
+            // Consider "at top" when within 50px of the top
+            if (messagesList.scrollTop <= 50 && 
+                this.messageStore.currentConversation && 
+                this.hasMoreMessages) {
                 this.loadMoreThrottled(this.messageStore.currentConversation);
             }
         });
@@ -289,12 +388,16 @@ export class MessagesView {
         const receiverId = parseInt(this.messageStore.currentConversation);
         const currentUser = userStore.getCurrentUser();
 
+        // Create a temporary ID for immediate feedback
+        const tempId = 'temp-' + Date.now();
+        
         const message = {
             type: 'message',
             content,
             receiver_id: receiverId,
             sender_id: currentUser.id,
-            timestamp: new Date()
+            timestamp: new Date(),
+            temp_id: tempId
         };
 
         try {
@@ -327,10 +430,23 @@ export class MessagesView {
     async handleIncomingMessage(message) {
         if (message.type === 'message') {
             const conversationId = message.sender_id.toString();
-            this.messageStore.addMessage(conversationId, {
-                ...message,
-                created_at: message.timestamp
-            });
+            
+            // Check if this is a confirmation of a message we sent (has a temp_id)
+            const existingMessageIndex = this.findTempMessageIndex(conversationId, message.temp_id);
+            
+            if (existingMessageIndex >= 0) {
+                // Update the temporary message with the confirmed one
+                this.messageStore.updateMessage(conversationId, existingMessageIndex, {
+                    ...message,
+                    created_at: message.timestamp
+                });
+            } else {
+                // This is a new message from someone else
+                this.messageStore.addMessage(conversationId, {
+                    ...message,
+                    created_at: message.timestamp
+                });
+            }
             
             if (this.messageStore.currentConversation === conversationId) {
                 this.renderMessages(conversationId);
