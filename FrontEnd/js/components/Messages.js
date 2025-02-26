@@ -3,22 +3,13 @@ import { formatTimestamp } from '../utils/time.js';
 import { throttle } from '../utils/throttle.js';
 import userStore from '../store/userStore.js';
 import { initNotifications } from './notifications.js';
-
-const socket = new WebSocket("ws://localhost:8080/ws");
-
-
-socket.onopen = () => {
-    console.log("WebSocket connected");
-};
-
-socket.onerror = (error) => {
-    console.error("WebSocket Error:", error);
-};
-
-socket.onclose = (event) => {
-    console.warn("WebSocket closed:", event);
-};
-
+import { 
+    getWebSocket, 
+    closeWebSocket, 
+    registerMessageHandler, 
+    unregisterMessageHandler,
+    sendMessage
+} from '../store/ websocketManager.js';
 
 export class MessagesView {
     constructor() {
@@ -26,7 +17,7 @@ export class MessagesView {
         this.isLoading = false;
         this.loadMoreThrottled = throttle(this.loadMoreMessages.bind(this), 1000);
         this.messageStore = messageStore;
-        this.ws = null;
+        this.messageHandler = this.handleIncomingMessage.bind(this);
     }
 
     async loadMoreMessages(userId) {
@@ -65,7 +56,8 @@ export class MessagesView {
 
         await this.loadConversations();
         this.setupEventListeners();
-        this.setupWebSocket();
+        // Register message handler instead of setting up WebSocket directly
+        registerMessageHandler(this.messageHandler);
     }
 
     async loadConversations() {
@@ -306,17 +298,14 @@ export class MessagesView {
         };
 
         try {
-            const ws = await this.getWebSocket();
-
-            console.log('WebSocket status:', ws ? ws.readyState : 'No WebSocket');
-        
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                console.error('WebSocket not connected');
+            // Use the WebSocket manager to send the message
+            const sent = sendMessage(message);
+            
+            if (!sent) {
                 alert('Could not connect to the messaging server. Please try again later.');
                 return;
             }
 
-            ws.send(JSON.stringify(message));
             input.value = '';
             input.style.height = 'auto';
 
@@ -334,81 +323,36 @@ export class MessagesView {
         }
     }
 
-    async getWebSocket() {
-        // Don't try to connect if user is not logged in
-        const user = userStore.getCurrentUser();
-        if (!user) {
-            return null;
-        }
-
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            try {
-                this.ws = await this.setupWebSocket();
-            } catch (error) {
-                console.error('WebSocket connection failed:', error);
-                return null;
+    // Handle incoming messages from the WebSocket
+    async handleIncomingMessage(message) {
+        if (message.type === 'message') {
+            const conversationId = message.sender_id.toString();
+            this.messageStore.addMessage(conversationId, {
+                ...message,
+                created_at: message.timestamp
+            });
+            
+            if (this.messageStore.currentConversation === conversationId) {
+                this.renderMessages(conversationId);
             }
-        }
-        return this.ws;
-    }
-
-    // Add method to close WebSocket
-    closeWebSocket() {
-        if (this.ws) {
-            this.ws.onclose = null; // Prevent reconnection attempt
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    setupWebSocket() {
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
-        
-        ws.onmessage = async (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type === 'message') {
-                const conversationId = message.sender_id.toString();
-                this.messageStore.addMessage(conversationId, {
-                    ...message,
-                    created_at: message.timestamp
+            
+            // Refresh conversations list
+            await this.loadConversations();
+            
+            // Show notification if not in current conversation
+            if (this.messageStore.currentConversation !== conversationId) {
+                initNotifications().newMessage({
+                    sender: message.sender_name || 'Someone',
+                    preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
                 });
-                
-                if (this.messageStore.currentConversation === conversationId) {
-                    this.renderMessages(conversationId);
-                }
-                
-                // Refresh conversations list
-                await this.loadConversations();
-                
-                // Show notification if not in current conversation
-                if (this.messageStore.currentConversation !== conversationId) {
-                    initNotifications().newMessage({
-                        sender: message.sender_name || 'Someone',
-                        preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
-                    });
-                }
             }
-        };
+        }
+    }
 
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            // Only attempt to reconnect if user is logged in
-            const user = userStore.getCurrentUser();
-            if (user) {
-                setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
-            }
-        };
-
-        ws.onclose = () => {
-            // Only attempt to reconnect if user is logged in
-            const user = userStore.getCurrentUser();
-            if (user) {
-                setTimeout(() => this.setupWebSocket(), 5000); // Retry after 5 seconds
-            }
-        };
-
-        this.ws = ws;
-        return ws;
+    // Method to clean up when view is destroyed
+    destroy() {
+        // Unregister the message handler when the view is removed
+        unregisterMessageHandler(this.messageHandler);
     }
 
     async selectConversation(userId) {
