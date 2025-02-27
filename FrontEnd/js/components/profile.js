@@ -1,5 +1,6 @@
 import userStore from '../store/userStore.js';
 import { logout } from '../components/auth.js';
+import { initTheme } from '../utils/theme.js';
 
 export class Profile {
   constructor() {
@@ -209,6 +210,10 @@ export class Profile {
           <a data-link href="/profile" class="dropdown-item">
             <i class="fas fa-user"></i> My Profile
           </a>
+          <button class="dropdown-item" id="theme-toggle">
+            <i class="fas fa-moon"></i>
+            <span class="theme-text">Switch to dark mode</span>
+          </button>
           <button class="dropdown-item" id="logoutButton">
             <i class="fas fa-sign-out-alt"></i> Logout
           </button>
@@ -227,6 +232,7 @@ export class Profile {
     const profileTrigger = userSection.querySelector('.profile-trigger');
     const profileDropdown = userSection.querySelector('.profile-dropdown');
     const logoutButton = document.getElementById('logoutButton');
+    const themeToggle = document.getElementById('theme-toggle');
 
     if (profileTrigger && profileDropdown) {
       profileTrigger.addEventListener('click', (e) => {
@@ -243,6 +249,12 @@ export class Profile {
       logoutButton.addEventListener('click', () => {
         this.handleLogout();
       });
+    }
+
+    // Setup theme toggle using ThemeManager
+    if (themeToggle) {
+      const themeManager = initTheme();
+      themeManager.setupThemeToggle(themeToggle);
     }
   }
 
