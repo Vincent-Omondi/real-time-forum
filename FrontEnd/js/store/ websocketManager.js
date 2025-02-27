@@ -7,6 +7,7 @@ let websocket = null;
 let reconnectTimeout = null;
 let messageHandlers = [];
 let notificationHandlers = [];
+let heartbeatInterval = null;
 
 /**
  * Get the existing WebSocket or create a new one if needed
@@ -30,6 +31,12 @@ function createWebSocket() {
         reconnectTimeout = null;
     }
 
+    // Clear any existing heartbeat
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+
     // Get authentication token
     const token = localStorage.getItem('csrfToken') || 
                  document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -39,6 +46,17 @@ function createWebSocket() {
     
     ws.onopen = () => {
         console.log("WebSocket connected");
+        
+        // Set up regular heartbeat to keep connection alive and status updated
+        heartbeatInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                // Send a status ping to the server
+                ws.send(JSON.stringify({
+                    type: 'heartbeat',
+                    timestamp: new Date()
+                }));
+            }
+        }, 30000); // Send heartbeat every 30 seconds
     };
     
     ws.onmessage = (event) => {
@@ -52,6 +70,10 @@ function createWebSocket() {
                     break;
                 case 'notification':
                     notificationHandlers.forEach(handler => handler(data));
+                    break;
+                case 'status_update':
+                    // Forward status updates to message handlers as they handle UI updates
+                    messageHandlers.forEach(handler => handler(data));
                     break;
                 default:
                     console.log("Unhandled WebSocket message type:", data.type);
@@ -68,6 +90,12 @@ function createWebSocket() {
     ws.onclose = (event) => {
         console.warn("WebSocket closed:", event);
         websocket = null;
+        
+        // Clear heartbeat interval
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
         
         // Only attempt to reconnect if user is authenticated
         if (userStore.isAuthenticated()) {
@@ -87,6 +115,11 @@ export function closeWebSocket() {
     if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
         reconnectTimeout = null;
+    }
+    
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
     }
     
     if (websocket) {
