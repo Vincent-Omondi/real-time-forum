@@ -164,6 +164,20 @@
     background-color: var(--hover-bg);
 }
 
+.messages-icon {
+    position: relative;
+    margin: 0 15px;
+}
+
+.messages-icon a {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.messages-icon i {
+    font-size: 18px;
+}
+
 /* Responsive styles for header */
 @media (max-width: 1024px) {
     .hamburger-menu {
