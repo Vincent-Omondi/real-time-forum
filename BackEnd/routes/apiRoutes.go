@@ -270,6 +270,14 @@ func APIRoutes(db *sql.DB, hub *websockets.MessageHub) {
 		middleware.ErrorHandler(handlers.ServeErrorPage),
 	))
 
+	http.Handle("/api/messages/read/{userId}", middleware.ApplyMiddleware(
+		handlers.MarkMessagesAsReadHandler(messageController),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+	))
+
 	// WebSocket route
 	http.Handle("/ws", middleware.ApplyMiddleware(
 		&WebSocketHandler{
