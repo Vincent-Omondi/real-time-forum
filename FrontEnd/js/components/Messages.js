@@ -9,7 +9,7 @@ import {
     registerMessageHandler, 
     unregisterMessageHandler,
     sendMessage
-} from '../store/ websocketManager.js';
+} from '../store/websocketManager.js';
 
 export class MessagesView {
     constructor() {
@@ -20,6 +20,7 @@ export class MessagesView {
         this.messageStore = messageStore;
         this.messageHandler = this.handleIncomingMessage.bind(this);
         this.scrollPositionToMaintain = null;
+        this.unsubscribe = this.messageStore.subscribe(() => this.updateUnreadIndicators());
     }
 
     async loadMoreMessages(userId) {
@@ -437,45 +438,76 @@ export class MessagesView {
     async handleIncomingMessage(message) {
         if (message.type === 'message') {
             const conversationId = message.sender_id.toString();
+            const currentUser = userStore.getCurrentUser();
             
-            // Check if this is a confirmation of a message we sent (has a temp_id)
-            const existingMessageIndex = this.findTempMessageIndex(conversationId, message.temp_id);
-            
-            if (existingMessageIndex >= 0) {
-                // Update the temporary message with the confirmed one
-                this.messageStore.updateMessage(conversationId, existingMessageIndex, {
-                    ...message,
-                    created_at: message.timestamp
-                });
-            } else {
-                // This is a new message from someone else
+            // Only process messages from other users
+            if (message.sender_id !== currentUser.id) {
+                // Add message to store and update unread count
                 this.messageStore.addMessage(conversationId, {
                     ...message,
                     created_at: message.timestamp
                 });
-            }
-            
-            if (this.messageStore.currentConversation === conversationId) {
-                this.renderMessages(conversationId);
-            }
-            
-            // Refresh conversations list
-            await this.loadConversations();
-            
-            // Show notification if not in current conversation
-            if (this.messageStore.currentConversation !== conversationId) {
-                initNotifications().newMessage({
-                    sender: message.sender_name || 'Someone',
-                    preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
-                });
+
+                // Show notification if not in the current conversation
+                if (this.messageStore.currentConversation !== conversationId) {
+                    // Find sender info from conversations
+                    const sender = this.messageStore.conversations.find(
+                        conv => conv.other_user_id.toString() === conversationId
+                    )?.username || 'Someone';
+                    
+                    // Create notification
+                    const notifications = initNotifications();
+                    notifications.newMessage({
+                        sender: sender,
+                        preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
+                    });
+
+                    // Play notification sound if available
+                    const audio = new Audio('/assets/notification.mp3');
+                    audio.volume = 0.5;
+                    audio.play().catch(err => console.log('Audio playback failed:', err));
+                }
+
+                // If in current conversation, mark as read immediately
+                if (this.messageStore.currentConversation === conversationId) {
+                    this.messageStore.markConversationAsRead(conversationId);
+                    this.renderMessages(conversationId);
+                }
+
+                // Refresh conversations list to show latest message
+                await this.loadConversations();
             }
         }
     }
 
     // Method to clean up when view is destroyed
     destroy() {
-        // Unregister the message handler when the view is removed
+        if (this.unsubscribe) {
+            this.unsubscribe();
+        }
         unregisterMessageHandler(this.messageHandler);
+    }
+
+    updateUnreadIndicators() {
+        const contacts = document.querySelectorAll('.contact-item');
+        contacts.forEach(contact => {
+            const userId = contact.dataset.userId;
+            const unreadCount = this.messageStore.unreadCounts.get(userId) || 0;
+            
+            const unreadBadge = contact.querySelector('.unread-badge');
+            if (unreadCount > 0) {
+                if (!unreadBadge) {
+                    const badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = unreadCount;
+                    contact.appendChild(badge);
+                } else {
+                    unreadBadge.textContent = unreadCount;
+                }
+            } else if (unreadBadge) {
+                unreadBadge.remove();
+            }
+        });
     }
 
     async selectConversation(userId) {
@@ -525,7 +557,10 @@ export class MessagesView {
         const messageInputContainer = document.querySelector('.message-input-container');
         messageInputContainer.style.display = 'block';
 
+        // Mark messages as read and update UI
+        this.messageStore.markMessagesAsRead(userId);
         this.messageStore.currentConversation = userId;
         await this.loadMessages(userId);
+        this.updateUnreadIndicators();
     }
 }
