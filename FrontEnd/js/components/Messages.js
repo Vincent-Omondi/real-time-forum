@@ -42,7 +42,9 @@ export class MessagesView {
                 <div class="contacts-sidebar">
                     <div class="contacts-header">
                         <h2>Messages</h2>
-                        <button class="new-conversation-btn">+</button>
+                        <button class="new-conversation-btn">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                     <div class="contacts-list"></div>
                 </div>
@@ -145,11 +147,13 @@ export class MessagesView {
 
     async showUserSearchModal() {
         try {
-            // Fetch registered users from a new endpoint, e.g., /api/users
             const response = await fetch('/api/users', { credentials: 'include' });
             if (!response.ok) throw new Error("Failed to fetch users");
             const data = await response.json();
-            const users = data.users;
+            const currentUser = userStore.getCurrentUser();
+            
+            // Filter out the current user from the list
+            const users = data.users.filter(user => user.id !== currentUser.id);
 
             // Create a modal container
             const modal = document.createElement('div');
@@ -160,11 +164,14 @@ export class MessagesView {
                     <h2>Select a user to chat with</h2>
                     <input type="text" id="user-search-input" placeholder="Search users..." />
                     <div id="user-search-results">
-                        ${users.map(user => `
-                            <div class="user-search-item" data-user-id="${user.id}">
-                                ${user.nickname}
-                            </div>
-                        `).join('')}
+                        ${users.length > 0 ? 
+                            users.map(user => `
+                                <div class="user-search-item" data-user-id="${user.id}">
+                                    ${user.nickname}
+                                </div>
+                            `).join('')
+                            : '<div class="no-users-message">No other users available</div>'
+                        }
                     </div>
                     <button id="close-user-search">Close</button>
                 </div>
