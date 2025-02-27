@@ -111,7 +111,7 @@ func (mc *MessageController) GetConversations(userID int64) ([]Conversation, err
 		var conv Conversation
 		var lastMessage sql.NullString
 		var lastMessageTime sql.NullTime
-		var lastSeenStr string  // temporary variable to capture the string value
+		var lastSeenStr string // temporary variable to capture the string value
 
 		err := rows.Scan(
 			&conv.OtherUserID,
@@ -245,4 +245,27 @@ func GetUserById(db *sql.DB) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func (mc *MessageController) MarkMessagesAsRead(userID, otherUserID int64) error {
+	currentTime := time.Now().UTC()
+
+	result, err := mc.db.Exec(`
+        UPDATE messages 
+        SET read_at = ?
+        WHERE receiver_id = ? 
+        AND sender_id = ?
+        AND read_at IS NULL
+    `, currentTime, userID, otherUserID)
+
+	if err != nil {
+		return fmt.Errorf("failed to mark messages as read: %w", err)
+	}
+
+	_ , err = result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+
+	return nil
 }
