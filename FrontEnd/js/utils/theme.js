@@ -2,17 +2,15 @@
 class ThemeManager {
     constructor() {
         this.theme = localStorage.getItem('theme') || 'light';
-        this.themeToggleBtn = document.getElementById('theme-toggle');
         this.initializeTheme();
         this.setupStorageListener();
-        this.setupThemeToggle();
     }
 
     initializeTheme() {
         document.documentElement.setAttribute('data-theme', this.theme);
         document.body.classList.remove('light-theme', 'dark-theme');
         document.body.classList.add(`${this.theme}-theme`);
-        this.updateThemeIcon();
+        this.updateThemeIcons();
     }
 
     toggleTheme() {
@@ -21,15 +19,20 @@ class ThemeManager {
         this.initializeTheme();
     }
 
-    updateThemeIcon() {
-        const icon = this.themeToggleBtn.querySelector('i');
-        icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-    }
-
-    setupThemeToggle() {
-        if (this.themeToggleBtn) {
-            this.themeToggleBtn.addEventListener('click', () => this.toggleTheme());
-        }
+    updateThemeIcons() {
+        // Update all theme toggle icons and text in the application
+        const themeToggles = document.querySelectorAll('#theme-toggle');
+        themeToggles.forEach(toggle => {
+            const icon = toggle.querySelector('i');
+            const text = toggle.querySelector('.theme-text');
+            
+            if (icon) {
+                icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+            if (text) {
+                text.textContent = this.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+            }
+        });
     }
 
     setupStorageListener() {
@@ -38,6 +41,27 @@ class ThemeManager {
                 this.theme = event.newValue;
                 this.initializeTheme();
             }
+        });
+    }
+
+    // Method to setup theme toggle buttons
+    setupThemeToggle(toggleButton) {
+        if (!toggleButton) return;
+        
+        // Set initial icon and text state
+        const icon = toggleButton.querySelector('i');
+        const text = toggleButton.querySelector('.theme-text');
+        
+        if (icon) {
+            icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+        if (text) {
+            text.textContent = this.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+        }
+
+        // Add click handler
+        toggleButton.addEventListener('click', () => {
+            this.toggleTheme();
         });
     }
 }
