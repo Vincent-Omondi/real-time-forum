@@ -13,6 +13,7 @@ class ThemeManager {
         document.body.classList.remove('light-theme', 'dark-theme');
         document.body.classList.add(`${this.theme}-theme`);
         this.updateThemeIcon();
+        this.updateThemeToggleText();
     }
 
     toggleTheme() {
@@ -22,8 +23,30 @@ class ThemeManager {
     }
 
     updateThemeIcon() {
-        const icon = this.themeToggleBtn.querySelector('i');
-        icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        // Update the main theme toggle button icon
+        if (this.themeToggleBtn) {
+            const icon = this.themeToggleBtn.querySelector('i');
+            if (icon) {
+                icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        }
+        
+        // Update the profile dropdown theme toggle button icon
+        const profileThemeToggleBtn = document.getElementById('themeToggleButton');
+        if (profileThemeToggleBtn) {
+            const icon = profileThemeToggleBtn.querySelector('i');
+            if (icon) {
+                icon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        }
+    }
+    
+    updateThemeToggleText() {
+        const themeToggleText = document.getElementById('themeToggleText');
+        if (themeToggleText) {
+            themeToggleText.textContent = this.theme === 'light' ? 
+                'Switch to dark mode' : 'Switch to light mode';
+        }
     }
 
     setupThemeToggle() {
