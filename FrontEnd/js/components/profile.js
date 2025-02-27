@@ -199,21 +199,24 @@ export class Profile {
     const { nickname } = userData;
 
     userSection.innerHTML = `
-      <div class="profile-section">
-        <div class="profile-trigger">
-          <img src="${this.defaultAvatarPath}" alt="${nickname}'s profile picture" class="avatar">
-          <span class="username-display">${this.escapeHtml(nickname)}</span>
-          <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="profile-dropdown">
-          <a data-link href="/profile" class="dropdown-item">
-            <i class="fas fa-user"></i> My Profile
-          </a>
-          <button class="dropdown-item" id="logoutButton">
-            <i class="fas fa-sign-out-alt"></i> Logout
-          </button>
-        </div>
+<div class="profile-section">
+      <div class="profile-trigger">
+        <img src="${this.defaultAvatarPath}" alt="${nickname}'s profile picture" class="avatar">
+        <span class="username-display">${this.escapeHtml(nickname)}</span>
+        <i class="fas fa-chevron-down"></i>
       </div>
+      <div class="profile-dropdown">
+        <a data-link href="/profile" class="dropdown-item">
+          <i class="fas fa-user"></i> My Profile
+        </a>
+        <button class="dropdown-item" id="themeToggleButton">
+          <i class="fas fa-moon"></i> <span id="themeToggleText">Switch to dark mode</span>
+        </button>
+        <button class="dropdown-item" id="logoutButton">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </div>
     `;
 
     this.attachDropdownEventListeners(userSection);
@@ -227,6 +230,7 @@ export class Profile {
     const profileTrigger = userSection.querySelector('.profile-trigger');
     const profileDropdown = userSection.querySelector('.profile-dropdown');
     const logoutButton = document.getElementById('logoutButton');
+    const themeToggleButton = document.getElementById('themeToggleButton');
 
     if (profileTrigger && profileDropdown) {
       profileTrigger.addEventListener('click', (e) => {
@@ -242,6 +246,17 @@ export class Profile {
     if (logoutButton) {
       logoutButton.addEventListener('click', () => {
         this.handleLogout();
+      });
+    }
+
+    if (themeToggleButton) {
+      import('../utils/theme.js').then(module => {
+        const themeManager = module.initTheme();
+        themeManager.updateThemeToggleText();
+        
+        themeToggleButton.addEventListener('click', () => {
+          themeManager.toggleTheme();
+        });
       });
     }
   }
