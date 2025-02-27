@@ -439,44 +439,100 @@ export class MessagesView {
         }
     }
 
-    // Handle incoming messages from the WebSocket
-    async handleIncomingMessage(message) {
-        if (message.type === 'message') {
-            const conversationId = message.sender_id.toString();
-            
-            // Check if this is a confirmation of a message we sent (has a temp_id)
+// Handle incoming messages from the WebSocket
+async handleIncomingMessage(message) {
+    // First, check the message type
+    if (message.type === 'message') {
+        // Handle regular chat messages
+        const conversationId = message.sender_id.toString();
+        
+        // Check if this is a confirmation of a message we sent (has a temp_id)
+        if (message.temp_id) {
             const existingMessageIndex = this.findTempMessageIndex(conversationId, message.temp_id);
             
             if (existingMessageIndex >= 0) {
                 // Update the temporary message with the confirmed one
-                this.messageStore.updateMessage(conversationId, existingMessageIndex, {
+                const messages = this.messageStore.messages.get(conversationId) || [];
+                messages[existingMessageIndex] = {
                     ...message,
                     created_at: message.timestamp
-                });
+                };
+                this.messageStore.setMessages(conversationId, messages);
             } else {
-                // This is a new message from someone else
+                // This is a new message
                 this.messageStore.addMessage(conversationId, {
                     ...message,
                     created_at: message.timestamp
                 });
             }
+        } else {
+            // This is a new message from someone else
+            this.messageStore.addMessage(conversationId, {
+                ...message,
+                created_at: message.timestamp
+            });
+        }
+        
+        if (this.messageStore.currentConversation === conversationId) {
+            this.renderMessages(conversationId);
+        }
+        
+        // Refresh conversations list
+        await this.loadConversations();
+        
+        // Show notification if not in current conversation
+        if (this.messageStore.currentConversation !== conversationId) {
+            initNotifications().newMessage({
+                sender: message.sender_name || 'Someone',
+                preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
+            });
+        }
+    }
+    else if (message.type === 'status_update') {
+        // Handle status update
+        const userId = message.user_id.toString();
+        console.log("Received status update for user:", userId, "Online:", message.is_online);
+        
+        // Update conversations list to reflect the new status
+        const conversations = this.messageStore.conversations;
+        const conversationExists = conversations.some(conv => conv.other_user_id.toString() === userId);
+        
+        // Update existing conversations
+        if (conversationExists) {
+            const updatedConversations = conversations.map(conv => {
+                if (conv.other_user_id.toString() === userId) {
+                    return {
+                        ...conv,
+                        is_online: message.is_online,
+                        last_seen: message.last_seen
+                    };
+                }
+                return conv;
+            });
             
-            if (this.messageStore.currentConversation === conversationId) {
-                this.renderMessages(conversationId);
-            }
-            
-            // Refresh conversations list
-            await this.loadConversations();
-            
-            // Show notification if not in current conversation
-            if (this.messageStore.currentConversation !== conversationId) {
-                initNotifications().newMessage({
-                    sender: message.sender_name || 'Someone',
-                    preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
-                });
+            this.messageStore.setConversations(updatedConversations);
+            this.renderConversationList();
+        }
+        
+        // If this user is currently in an active conversation, update the header
+        if (this.messageStore.currentConversation === userId) {
+            const chatHeader = document.querySelector('.chat-header');
+            if (chatHeader) {
+                const statusElement = chatHeader.querySelector('.chat-status');
+                if (statusElement) {
+                    statusElement.className = `chat-status ${message.is_online ? 'online' : ''}`;
+                    statusElement.textContent = message.is_online ? 
+                        'Online' : 
+                        'Last seen ' + formatTimestamp(message.last_seen);
+                }
             }
         }
     }
+    else if (message.type === 'heartbeat_ack') {
+        // Just log it or use for connection monitoring
+        console.log("Heartbeat acknowledged");
+    }
+}
 
     // Method to clean up when view is destroyed
     destroy() {
