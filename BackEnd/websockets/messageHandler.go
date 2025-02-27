@@ -3,6 +3,7 @@ package websockets
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -28,11 +29,12 @@ type Client struct {
 }
 
 type Message struct {
-	Type       string    `json:"type"`
-	Content    string    `json:"content"`
-	SenderID   int64     `json:"sender_id"`
-	ReceiverID int64     `json:"receiver_id"`
-	Timestamp  time.Time `json:"timestamp"`
+	Type       string     `json:"type"`
+	Content    string     `json:"content"`
+	SenderID   int64      `json:"sender_id"`
+	ReceiverID int64      `json:"receiver_id"`
+	Timestamp  time.Time  `json:"timestamp"`
+	ReadAt     *time.Time `json:"read_at,omitempty"`
 }
 
 func NewMessageHub(db *sql.DB) *MessageHub {
@@ -72,60 +74,70 @@ func (h *MessageHub) Run() {
 }
 
 func (h *MessageHub) handleMessage(message *Message) {
-	// Store message in database
-	if err := h.storeMessage(message); err != nil {
-		logger.Error("Failed to store message: %v", err)
-		return
-	}
+	switch message.Type {
+	case "message":
+		// Store message in database
+		if err := h.storeMessage(message); err != nil {
+			logger.Error("Failed to store message: %v", err)
+			return
+		}
 
-	// Find receiver's client connection
-	for client := range h.Clients {
-		if client.UserID == message.ReceiverID {
-			select {
-			case client.Send <- message.serialize():
-			default:
-				close(client.Send)
-				delete(h.Clients, client)
+		// Find receiver's client connection and send message
+		for client := range h.Clients {
+			if client.UserID == message.ReceiverID {
+				select {
+				case client.Send <- message.serialize():
+				default:
+					close(client.Send)
+					delete(h.Clients, client)
+				}
 			}
+		}
+
+	case "read":
+		// Mark messages as read
+		if err := h.markMessagesAsRead(message.ReceiverID, message.SenderID); err != nil {
+			logger.Error("Failed to mark messages as read: %v", err)
+			return
 		}
 	}
 }
 
 func (h *MessageHub) updateUserStatus(userID int64, isOnline bool) error {
-    currentTime := time.Now().UTC()
-    
-    // First try to update existing record
-    result, err := h.Db.Exec(`
-        UPDATE user_status 
-        SET is_online = ?,
-            last_seen = CASE 
-                WHEN is_online = 0 OR is_online <> ? THEN ?
-                ELSE last_seen 
-            END
-        WHERE user_id = ?
-    `, isOnline, isOnline, currentTime, userID)
-    
-    if err != nil {
-        logger.Error("Failed to update user status: %v", err)
-        return err
-    }
-    
-    // Check if any rows were affected
-    rowsAffected, _ := result.RowsAffected()
-    if rowsAffected == 0 {
-        // No existing record, insert a new one
-        _, err = h.Db.Exec(`
-            INSERT INTO user_status (user_id, is_online, last_seen)
-            VALUES (?, ?, ?)
-        `, userID, isOnline, currentTime)
-        
-        if err != nil {
-            logger.Error("Failed to insert user status: %v", err)
-            return err
-        }
-    }
-    
-    return nil
+	currentTime := time.Now().UTC()
+
+	// First try to update existing record
+	result, err := h.Db.Exec(`
+		UPDATE user_status 
+		SET is_online = ?,
+			last_seen = CASE 
+				WHEN is_online = 0 OR is_online <> ? THEN ?
+				ELSE last_seen 
+			END
+		WHERE user_id = ?
+	`, isOnline, isOnline, currentTime, userID)
+
+	if err != nil {
+		logger.Error("Failed to update user status: %v", err)
+		return err
+	}
+
+	// Check if any rows were affected
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		// No existing record, insert a new one
+		_, err = h.Db.Exec(`
+			INSERT INTO user_status (user_id, is_online, last_seen)
+			VALUES (?, ?, ?)
+		`, userID, isOnline, currentTime)
+
+		if err != nil {
+			logger.Error("Failed to insert user status: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h *MessageHub) storeMessage(message *Message) error {
@@ -134,6 +146,24 @@ func (h *MessageHub) storeMessage(message *Message) error {
 		VALUES (?, ?, ?, ?)
 	`, message.SenderID, message.ReceiverID, message.Content, message.Timestamp)
 	return err
+}
+
+func (h *MessageHub) markMessagesAsRead(userID, otherUserID int64) error {
+	currentTime := time.Now().UTC()
+
+	_, err := h.Db.Exec(`
+		UPDATE messages 
+		SET read_at = ?
+		WHERE receiver_id = ? 
+		AND sender_id = ?
+		AND read_at IS NULL
+	`, currentTime, userID, otherUserID)
+
+	if err != nil {
+		return fmt.Errorf("failed to mark messages as read: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Message) serialize() []byte {
