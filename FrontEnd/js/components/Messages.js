@@ -148,8 +148,9 @@ export class MessagesView {
         } else {
             contactsList.innerHTML = sortedConversations.map(conv => {
                 // Format the timestamp for display
-                const timestamp = conv.last_message_timestamp 
-                    ? formatTimestamp(conv.last_message_timestamp, false) 
+                console.log(conv.last_message_time)
+                const timestamp = conv.last_message_time 
+                    ? formatTimestamp(conv.last_message_time, false) 
                     : formatTimestamp(conv.last_seen, false);
                 
                 return `
