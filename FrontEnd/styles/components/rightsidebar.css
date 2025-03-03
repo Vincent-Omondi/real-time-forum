@@ -1,0 +1,210 @@
+/* Right Sidebar Styles */
+.right-sidebar {
+    width: 280px;
+    height: calc(100vh - var(--header-height, 60px)); 
+    position: fixed;
+    right: 0;
+    top: var(--header-height, 60px); 
+    background-color: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    padding: 20px 15px;
+    overflow-y: auto;
+    z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.sidebar-section {
+    margin-bottom: 25px;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.sidebar-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-item {
+    padding: 8px 0;
+    margin: 5px 0;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.sidebar-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.sidebar-link {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+}
+
+.sidebar-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    color: var(--text-secondary);
+}
+
+/* Recent Activity Styles */
+.activity-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* User avatar styling */
+.sidebar-user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    position: relative;
+    margin-right: 12px;
+}
+
+/* Online/offline status indicator */
+.sidebar-status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    border: 2px solid var(--bg-secondary);
+}
+
+.sidebar-status-indicator.online {
+    background-color: #10b981;
+}
+
+.sidebar-status-indicator.offline {
+    background-color: var(--text-secondary);
+}
+
+/* User info section */
+.sidebar-user-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.sidebar-user-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-last-message {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+/* Unread message badge */
+.sidebar-unread-badge {
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 12px;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Search field styling */
+.sidebar-search {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.sidebar-search:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.1);
+}
+
+/* Filter buttons */
+.sidebar-filter-buttons {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.sidebar-filter-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    flex: 1;
+    color: var(--text-primary);
+}
+
+.sidebar-filter-btn:first-child {
+    border-radius: 4px 0 0 4px;
+}
+
+.sidebar-filter-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.sidebar-filter-btn.active {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .right-sidebar {
+        width: 240px;
+        padding: 15px 10px;
+    }
+}
+
+@media (max-width: 992px) {
+    .right-sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+    }
+}
