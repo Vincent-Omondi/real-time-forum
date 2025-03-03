@@ -69,6 +69,16 @@ export class MessagesView {
         this.setupEventListeners();
         // Register message handler instead of setting up WebSocket directly
         registerMessageHandler(this.messageHandler);
+
+            // Check if we need to open a specific conversation (from right sidebar)
+        const openConversationWith = sessionStorage.getItem('openConversationWith');
+        if (openConversationWith) {
+            // Clear the stored user ID
+            sessionStorage.removeItem('openConversationWith');
+            
+            // Open the conversation
+            this.selectConversation(openConversationWith);
+        }
     }
 
     async loadConversations() {
@@ -138,15 +148,13 @@ export class MessagesView {
         } else {
             contactsList.innerHTML = sortedConversations.map(conv => `
                 <div class="contact-item" data-user-id="${conv.other_user_id}">
-                    <div class="contact-avatar">
+                    <div class="sidebar-user-avatar">
                         ${conv.username.charAt(0).toUpperCase()}
+                        <span class="sidebar-status-indicator ${conv.is_online ? 'online' : 'offline'}"></span>
                     </div>
-                    <div class="contact-info">
-                        <div class="contact-name">${conv.username}</div>
-                        <div class="contact-status ${conv.is_online ? 'online' : ''}">
-                            ${conv.is_online ? 'Online' : 'Last seen ' + formatTimestamp(conv.last_seen)}
-                        </div>
-                        <div class="last-message">${conv.last_message || 'No messages yet'}</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name">${conv.username}</div>
+                        <div class="sidebar-last-message">${conv.last_message || 'No messages yet'}</div>
                     </div>
                 </div>
             `).join('');
