@@ -146,18 +146,28 @@ export class MessagesView {
             document.getElementById('start-new-conversation')
                 .addEventListener('click', () => this.showUserSearchModal());
         } else {
-            contactsList.innerHTML = sortedConversations.map(conv => `
-                <div class="contact-item" data-user-id="${conv.other_user_id}">
-                    <div class="sidebar-user-avatar">
-                        ${conv.username.charAt(0).toUpperCase()}
-                        <span class="sidebar-status-indicator ${conv.is_online ? 'online' : 'offline'}"></span>
+            contactsList.innerHTML = sortedConversations.map(conv => {
+                // Format the timestamp for display
+                const timestamp = conv.last_message_timestamp 
+                    ? formatTimestamp(conv.last_message_timestamp, false) 
+                    : formatTimestamp(conv.last_seen, false);
+                
+                return `
+                    <div class="contact-item" data-user-id="${conv.other_user_id}">
+                        <div class="sidebar-user-avatar">
+                            ${conv.username.charAt(0).toUpperCase()}
+                            <span class="sidebar-status-indicator ${conv.is_online ? 'online' : 'offline'}"></span>
+                        </div>
+                        <div class="sidebar-user-info">
+                            <div class="sidebar-header-row">
+                                <span class="sidebar-user-name">${conv.username}</span>
+                                <span class="sidebar-last-time">${timestamp}</span>
+                            </div>
+                            <div class="sidebar-last-message">${conv.last_message || 'No messages yet'}</div>
+                        </div>
                     </div>
-                    <div class="sidebar-user-info">
-                        <div class="sidebar-user-name">${conv.username}</div>
-                        <div class="sidebar-last-message">${conv.last_message || 'No messages yet'}</div>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
     }
 
