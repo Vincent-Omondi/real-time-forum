@@ -34,19 +34,21 @@ export function updateUIBasedOnAuth(isAuthenticated) {
   const searchBar = document.querySelector('.search-bar-container');
   const navActions = document.querySelector('.nav-actions');
   const themeToggle = document.querySelector('#theme-toggle');
+  const rightSidebar = document.querySelector('.right-sidebar');
+  const messageLink = document.querySelector('a[href="/messages"]');
   const currentPath = window.location.pathname;
   const isAuthPage = currentPath === '/login' || currentPath === '/register';
 
   // On auth pages, hide navigation UI and ensure main content is visible.
   if (isAuthPage) {
-    [sidebar, searchBar, navActions, themeToggle].forEach(el => el?.classList.add('hidden'));
+    [sidebar, searchBar, navActions, themeToggle, rightSidebar, messageLink].forEach(el => el?.classList.add('hidden'));
     mainContent?.classList.remove('hidden');
     return;
   }
 
   // If authenticated, display all UI elements.
   if (isAuthenticated) {
-    [sidebar, mainContent, searchBar, navActions, themeToggle].forEach(el => el?.classList.remove('hidden'));
+    [sidebar, mainContent, searchBar, navActions, themeToggle, rightSidebar, messageLink].forEach(el => el?.classList.remove('hidden'));
   } else {
     // If not authenticated, remove all key UI elements and redirect to login.
     // Use the Router if available for a smoother transition
@@ -60,7 +62,7 @@ export function updateUIBasedOnAuth(isAuthenticated) {
     
     // Hide UI elements instead of removing them - this is gentler and allows them
     // to be restored if the user logs in without a page refresh
-    [sidebar, searchBar, navActions, themeToggle].forEach(el => el?.classList.add('hidden'));
+    [sidebar, searchBar, navActions, themeToggle, rightSidebar, messageLink].forEach(el => el?.classList.add('hidden'));
   }
 }
 
