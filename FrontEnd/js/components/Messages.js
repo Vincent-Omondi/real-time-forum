@@ -69,6 +69,16 @@ export class MessagesView {
         this.setupEventListeners();
         // Register message handler instead of setting up WebSocket directly
         registerMessageHandler(this.messageHandler);
+
+            // Check if we need to open a specific conversation (from right sidebar)
+        const openConversationWith = sessionStorage.getItem('openConversationWith');
+        if (openConversationWith) {
+            // Clear the stored user ID
+            sessionStorage.removeItem('openConversationWith');
+            
+            // Open the conversation
+            this.selectConversation(openConversationWith);
+        }
     }
 
     async loadConversations() {
@@ -115,9 +125,17 @@ export class MessagesView {
 
     renderConversationList() {
         const contactsList = document.querySelector('.contacts-list');
-        const conversations = this.messageStore.conversations;
         
-        if (conversations.length === 0) {
+        // Sort conversations by the timestamp of the last message (most recent first)
+        const sortedConversations = [...this.messageStore.conversations].sort((a, b) => {
+            // If no last_message_timestamp, use last_seen as fallback
+            const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
+            const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+            // Sort in descending order (most recent first)
+            return timeB - timeA;
+        });
+        
+        if (sortedConversations.length === 0) {
             // Show a placeholder with a "Start New Conversation" button
             contactsList.innerHTML = `
                 <div class="no-conversations">
@@ -128,20 +146,28 @@ export class MessagesView {
             document.getElementById('start-new-conversation')
                 .addEventListener('click', () => this.showUserSearchModal());
         } else {
-            contactsList.innerHTML = conversations.map(conv => `
-                <div class="contact-item" data-user-id="${conv.other_user_id}">
-                    <div class="contact-avatar">
-                        ${conv.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="contact-info">
-                        <div class="contact-name">${conv.username}</div>
-                        <div class="contact-status ${conv.is_online ? 'online' : ''}">
-                            ${conv.is_online ? 'Online' : 'Last seen ' + formatTimestamp(conv.last_seen)}
+            contactsList.innerHTML = sortedConversations.map(conv => {
+                // Format the timestamp for display
+                const timestamp = conv.last_message_timestamp 
+                    ? formatTimestamp(conv.last_message_timestamp, false) 
+                    : formatTimestamp(conv.last_seen, false);
+                
+                return `
+                    <div class="contact-item" data-user-id="${conv.other_user_id}">
+                        <div class="sidebar-user-avatar">
+                            ${conv.username.charAt(0).toUpperCase()}
+                            <span class="sidebar-status-indicator ${conv.is_online ? 'online' : 'offline'}"></span>
                         </div>
-                        <div class="last-message">${conv.last_message || 'No messages yet'}</div>
+                        <div class="sidebar-user-info">
+                            <div class="sidebar-header-row">
+                                <span class="sidebar-user-name">${conv.username}</span>
+                                <span class="sidebar-last-time">${timestamp}</span>
+                            </div>
+                            <div class="sidebar-last-message">${conv.last_message || 'No messages yet'}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
     }
 
@@ -403,13 +429,14 @@ export class MessagesView {
 
         // Create a temporary ID for immediate feedback
         const tempId = 'temp-' + Date.now();
+        const timestamp = new Date();
         
         const message = {
             type: 'message',
             content,
             receiver_id: receiverId,
             sender_id: currentUser.id,
-            timestamp: new Date(),
+            timestamp,
             temp_id: tempId
         };
 
@@ -432,107 +459,172 @@ export class MessagesView {
             });
             this.renderMessages(receiverId.toString());
 
-            // Update conversations list
-            await this.loadConversations();
-        } catch (error) {
-            console.error('Error sending message:', error);
-        }
-    }
-
-// Handle incoming messages from the WebSocket
-async handleIncomingMessage(message) {
-    // First, check the message type
-    if (message.type === 'message') {
-        // Handle regular chat messages
-        const conversationId = message.sender_id.toString();
-        
-        // Check if this is a confirmation of a message we sent (has a temp_id)
-        if (message.temp_id) {
-            const existingMessageIndex = this.findTempMessageIndex(conversationId, message.temp_id);
-            
-            if (existingMessageIndex >= 0) {
-                // Update the temporary message with the confirmed one
-                const messages = this.messageStore.messages.get(conversationId) || [];
-                messages[existingMessageIndex] = {
-                    ...message,
-                    created_at: message.timestamp
-                };
-                this.messageStore.setMessages(conversationId, messages);
-            } else {
-                // This is a new message
-                this.messageStore.addMessage(conversationId, {
-                    ...message,
-                    created_at: message.timestamp
-                });
-            }
-        } else {
-            // This is a new message from someone else
-            this.messageStore.addMessage(conversationId, {
-                ...message,
-                created_at: message.timestamp
-            });
-        }
-        
-        if (this.messageStore.currentConversation === conversationId) {
-            this.renderMessages(conversationId);
-        }
-        
-        // Refresh conversations list
-        await this.loadConversations();
-        
-        // Show notification if not in current conversation
-        if (this.messageStore.currentConversation !== conversationId) {
-            initNotifications().newMessage({
-                sender: message.sender_name || 'Someone',
-                preview: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
-            });
-        }
-    }
-    else if (message.type === 'status_update') {
-        // Handle status update
-        const userId = message.user_id.toString();
-        console.log("Received status update for user:", userId, "Online:", message.is_online);
-        
-        // Update conversations list to reflect the new status
-        const conversations = this.messageStore.conversations;
-        const conversationExists = conversations.some(conv => conv.other_user_id.toString() === userId);
-        
-        // Update existing conversations
-        if (conversationExists) {
-            const updatedConversations = conversations.map(conv => {
-                if (conv.other_user_id.toString() === userId) {
+            // Update the conversation list to show the most recent message at the top
+            const updatedConversations = this.messageStore.conversations.map(conv => {
+                if (conv.other_user_id.toString() === receiverId.toString()) {
                     return {
                         ...conv,
-                        is_online: message.is_online,
-                        last_seen: message.last_seen
+                        last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
+                        last_message_timestamp: timestamp
                     };
                 }
                 return conv;
             });
             
+            // Sort conversations by timestamp (most recent first)
+            updatedConversations.sort((a, b) => {
+                const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
+                const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                return timeB - timeA;
+            });
+            
             this.messageStore.setConversations(updatedConversations);
             this.renderConversationList();
+            
+            // Optionally, you can still refresh from the server for consistency
+            // await this.loadConversations();
+        } catch (error) {
+            console.error('Error sending message:', error);
         }
-        
-        // If this user is currently in an active conversation, update the header
-        if (this.messageStore.currentConversation === userId) {
-            const chatHeader = document.querySelector('.chat-header');
-            if (chatHeader) {
-                const statusElement = chatHeader.querySelector('.chat-status');
-                if (statusElement) {
-                    statusElement.className = `chat-status ${message.is_online ? 'online' : ''}`;
-                    statusElement.textContent = message.is_online ? 
-                        'Online' : 
-                        'Last seen ' + formatTimestamp(message.last_seen);
+    }
+
+    // Handle incoming messages from the WebSocket
+    async handleIncomingMessage(message) {
+        // First, check the message type
+        if (message.type === 'message') {
+            // Handle regular chat messages
+            const conversationId = message.sender_id.toString();
+            
+            // Check if this is a confirmation of a message we sent (has a temp_id)
+            if (message.temp_id) {
+                const existingMessageIndex = this.findTempMessageIndex(conversationId, message.temp_id);
+                
+                if (existingMessageIndex >= 0) {
+                    // Update the temporary message with the confirmed one
+                    const messages = this.messageStore.messages.get(conversationId) || [];
+                    messages[existingMessageIndex] = {
+                        ...message,
+                        created_at: message.timestamp
+                    };
+                    this.messageStore.setMessages(conversationId, messages);
+                } else {
+                    // This is a new message
+                    this.messageStore.addMessage(conversationId, {
+                        ...message,
+                        created_at: message.timestamp
+                    });
+                }
+            } else {
+                // This is a new message from someone else
+                this.messageStore.addMessage(conversationId, {
+                    ...message,
+                    created_at: message.timestamp
+                });
+            }
+            
+            if (this.messageStore.currentConversation === conversationId) {
+                this.renderMessages(conversationId);
+            }
+            
+            // Update the conversation with the latest message
+            const conversations = this.messageStore.conversations;
+            const conversationExists = conversations.some(conv => 
+                conv.other_user_id.toString() === (message.sender_id === userStore.getCurrentUser().id ? 
+                    message.receiver_id.toString() : message.sender_id.toString())
+            );
+            
+            if (conversationExists) {
+                const updatedConversations = conversations.map(conv => {
+                    // For messages we send, we need to check by receiver_id
+                    // For messages we receive, we check by sender_id
+                    const isTargetConversation = message.sender_id === userStore.getCurrentUser().id ?
+                        conv.other_user_id.toString() === message.receiver_id.toString() :
+                        conv.other_user_id.toString() === message.sender_id.toString();
+                    
+                    if (isTargetConversation) {
+                        return {
+                            ...conv,
+                            last_message: message.content.substring(0, 30) + (message.content.length > 30 ? '...' : ''),
+                            last_message_timestamp: message.timestamp
+                        };
+                    }
+                    return conv;
+                });
+                
+                // Sort conversations by timestamp (most recent first)
+                updatedConversations.sort((a, b) => {
+                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
+                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    return timeB - timeA;
+                });
+                
+                this.messageStore.setConversations(updatedConversations);
+                this.renderConversationList();
+            } else {
+                // If the conversation doesn't exist in our list, refresh the list from server
+                await this.loadConversations();
+            }
+            
+            const currentUser = userStore.getCurrentUser();
+            // Only show notification if you're NOT the sender AND you're not currently viewing that conversation
+            if (message.sender_id !== currentUser.id && this.messageStore.currentConversation !== conversationId) {
+                // Find the sender's name from the conversations list
+                const senderConversation = this.messageStore.conversations.find(
+                    conv => conv.other_user_id.toString() === message.sender_id.toString()
+                );
+                
+                const senderName = senderConversation ? senderConversation.username : 'Someone';
+                
+                initNotifications().newMessage({
+                    sender: senderName,
+                });
+            }
+        }
+        else if (message.type === 'status_update') {
+            // Handle status update
+            const userId = message.user_id.toString();
+            console.log("Received status update for user:", userId, "Online:", message.is_online);
+            
+            // Update conversations list to reflect the new status
+            const conversations = this.messageStore.conversations;
+            const conversationExists = conversations.some(conv => conv.other_user_id.toString() === userId);
+            
+            // Update existing conversations
+            if (conversationExists) {
+                const updatedConversations = conversations.map(conv => {
+                    if (conv.other_user_id.toString() === userId) {
+                        return {
+                            ...conv,
+                            is_online: message.is_online,
+                            last_seen: message.last_seen
+                        };
+                    }
+                    return conv;
+                });
+                
+                this.messageStore.setConversations(updatedConversations);
+                this.renderConversationList();
+            }
+            
+            // If this user is currently in an active conversation, update the header
+            if (this.messageStore.currentConversation === userId) {
+                const chatHeader = document.querySelector('.chat-header');
+                if (chatHeader) {
+                    const statusElement = chatHeader.querySelector('.chat-status');
+                    if (statusElement) {
+                        statusElement.className = `chat-status ${message.is_online ? 'online' : ''}`;
+                        statusElement.textContent = message.is_online ? 
+                            'Online' : 
+                            'Last seen ' + formatTimestamp(message.last_seen);
+                    }
                 }
             }
         }
+        else if (message.type === 'heartbeat_ack') {
+            // Just log it or use for connection monitoring
+            console.log("Heartbeat acknowledged");
+        }
     }
-    else if (message.type === 'heartbeat_ack') {
-        // Just log it or use for connection monitoring
-        console.log("Heartbeat acknowledged");
-    }
-}
 
     // Method to clean up when view is destroyed
     destroy() {

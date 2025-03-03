@@ -11,6 +11,7 @@ import { MainContent } from './components/MainContent.js';
 import { Auth } from './components/auth.js';
 import userStore from './store/userStore.js';
 import { MessagesView } from './components/Messages.js';
+import { RightSidebar } from './components/RightSidebar.js';
 import { 
     getWebSocket, 
     closeWebSocket, 
@@ -27,7 +28,19 @@ function updateUserSection() {
 // Function to update UI based on authentication status
 function updateUIBasedOnAuth(isLoggedIn) {
   console.log("Updating UI based on authentication status: ", isLoggedIn);
-  // Implement UI updates for logged-in/logged-out state
+  // Update UI elements visibility based on auth status
+  const rightSidebar = document.querySelector('.right-sidebar');
+  const messageLink = document.querySelector('a[href="/messages"]');
+
+  if (isLoggedIn) {
+    // Show right sidebar and message link if user is logged in
+    if (rightSidebar) rightSidebar.classList.remove('hidden');
+    if (messageLink) messageLink.classList.remove('hidden');
+  } else {
+    // Hide right sidebar and message link if user is not logged in
+    if (rightSidebar) rightSidebar.classList.add('hidden');
+    if (messageLink) messageLink.classList.add('hidden');
+  }
 }
 
 // Existing router and authentication logic here...
@@ -198,6 +211,8 @@ async function logoutUser() {
     
     // Close WebSocket connection when user logs out
     closeWebSocket();
+
+    updateUIBasedOnAuth(false);
     
   } catch (error) {
     console.error('Logout failed:', error);
@@ -412,6 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const header = new Header();
   const sidebar = new Sidebar();
   const mainContent = new MainContent();
+  const rightSidebar = new RightSidebar();
   
   // Make mainContent globally accessible
   window.mainContent = mainContent;
@@ -420,7 +436,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   container.appendChild(sidebar.render());
   container.appendChild(mainContent.render());
   root.appendChild(container);
+  root.appendChild(rightSidebar.render());
   
+  const rightSidebarElement = rightSidebar.render();
+  rightSidebarElement.classList.add('hidden');
+  root.appendChild(rightSidebarElement);
   // Check authentication
   const isAuthenticated = await checkLoginStatus();
   authInitialized = true;
@@ -436,6 +456,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Set up notification handlers for WebSocket messages
       setupNotificationHandlers();
+
+      await rightSidebar.init();
+
+      rightSidebarElement.classList.remove('hidden');
     }
     
     initTheme();
