@@ -302,3 +302,61 @@
 #close-user-search:hover {
     background-color: var(--hover-bg);
 } 
+
+.sidebar-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.sidebar-user-name {
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+.sidebar-last-time {
+    font-size: 0.8em;
+    color: #888;
+    white-space: nowrap;
+}
+
+/* No Conversations Styling */
+.no-conversations {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.no-conversations p {
+    margin-bottom: 20px;
+    font-size: 0.95em;
+}
+
+#start-new-conversation {
+    padding: 10px 16px;
+    border-radius: 20px;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9em;
+    box-shadow: 0 2px 8px rgba(var(--accent-color-rgb), 0.3);
+}
+
+#start-new-conversation:hover {
+    background-color: var(--accent-color-dark, var(--accent-color));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--accent-color-rgb), 0.4);
+}
+
+#start-new-conversation:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(var(--accent-color-rgb), 0.3);
+}
