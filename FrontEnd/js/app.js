@@ -11,6 +11,7 @@ import { MainContent } from './components/MainContent.js';
 import { Auth } from './components/auth.js';
 import userStore from './store/userStore.js';
 import { MessagesView } from './components/Messages.js';
+import { RightSidebar } from './components/RightSidebar.js';
 import { 
     getWebSocket, 
     closeWebSocket, 
@@ -412,6 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const header = new Header();
   const sidebar = new Sidebar();
   const mainContent = new MainContent();
+  const rightSidebar = new RightSidebar();
   
   // Make mainContent globally accessible
   window.mainContent = mainContent;
@@ -420,6 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   container.appendChild(sidebar.render());
   container.appendChild(mainContent.render());
   root.appendChild(container);
+  root.appendChild(rightSidebar.render());
   
   // Check authentication
   const isAuthenticated = await checkLoginStatus();
@@ -436,6 +439,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Set up notification handlers for WebSocket messages
       setupNotificationHandlers();
+
+      await rightSidebar.init();
     }
     
     initTheme();
