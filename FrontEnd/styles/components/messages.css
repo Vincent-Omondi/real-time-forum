@@ -360,3 +360,33 @@
     transform: translateY(0);
     box-shadow: 0 1px 4px rgba(var(--accent-color-rgb), 0.3);
 }
+
+.message-date-separator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-secondary);
+    font-size: 0.75em;
+    margin: 20px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.message-date-separator::before,
+.message-date-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+    opacity: 0.6;
+}
+
+/* Ensure first date separator doesn't have top margin */
+.messages-list > .message-date-separator:first-child {
+    margin-top: 0;
+}
+
+/* Ensure last date separator doesn't have bottom margin */
+.messages-list > .message-date-separator:last-child {
+    margin-bottom: 0;
+}
