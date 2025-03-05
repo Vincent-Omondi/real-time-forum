@@ -144,41 +144,154 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 8px;
     background-color: var(--bg-primary);
 }
 
 .message {
     max-width: 70%;
-    padding: 10px 15px;
-    border-radius: 15px;
+    padding: 12px 16px;
+    border-radius: 18px;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    margin: 2px 0;
 }
 
 .message.sent {
     align-self: flex-end;
     background-color: var(--accent-color);
     color: white;
-    border-bottom-right-radius: 5px;
+    border-bottom-right-radius: 4px;
 }
 
 .message.received {
     align-self: flex-start;
     background-color: var(--bg-secondary);
     color: var(--text-primary);
-    border-bottom-left-radius: 5px;
+    border-bottom-left-radius: 4px;
+}
+
+.message-username {
+    font-size: 0.8em;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+}
+
+.message.sent .message-username {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .message-content {
-    margin-bottom: 5px;
+    font-size: 0.95em;
+    line-height: 1.4;
+    margin-bottom: 4px;
     word-wrap: break-word;
+}
+
+.message-info {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
 }
 
 .message-time {
     font-size: 0.7em;
     opacity: 0.8;
-    margin-top: 5px;
-    text-align: right;
+}
+
+.message.sent .message-time {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.message.continuation {
+    margin-top: -2px;
+}
+
+.message.sent.continuation {
+    border-top-right-radius: 8px;
+}
+
+.message.received.continuation {
+    border-top-left-radius: 8px;
+}
+
+.message-date-separator {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.75em;
+    margin: 24px 0 12px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.message-date-separator::before,
+.message-date-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 0 15px;
+    opacity: 0.5;
+}
+
+/* Hover effect for messages */
+.message:hover {
+    filter: brightness(98%);
+}
+
+.message.sent:hover {
+    filter: brightness(95%);
+}
+
+/* Message transitions */
+.message {
+    transition: all 0.2s ease;
+}
+
+/* First message in a group */
+.message:not(.continuation) {
+    margin-top: 8px;
+}
+
+/* Message status indicators */
+.message-info::after {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+}
+
+.message.sent .message-info::after {
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>');
+    background-size: contain;
+}
+
+/* Messages container scrollbar styling */
+.messages-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.messages-list::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+}
+
+.messages-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-secondary);
 }
 
 .message-input-container {
@@ -359,34 +472,4 @@
 #start-new-conversation:active {
     transform: translateY(0);
     box-shadow: 0 1px 4px rgba(var(--accent-color-rgb), 0.3);
-}
-
-.message-date-separator {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--text-secondary);
-    font-size: 0.75em;
-    margin: 20px 0;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.message-date-separator::before,
-.message-date-separator::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border-color);
-    opacity: 0.6;
-}
-
-/* Ensure first date separator doesn't have top margin */
-.messages-list > .message-date-separator:first-child {
-    margin-top: 0;
-}
-
-/* Ensure last date separator doesn't have bottom margin */
-.messages-list > .message-date-separator:last-child {
-    margin-bottom: 0;
 }

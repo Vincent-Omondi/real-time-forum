@@ -7,7 +7,7 @@ import {
     registerMessageHandler, 
     unregisterMessageHandler,
     sendMessage
-} from '../store/ websocketManager.js';
+} from '../store/websocketManager.js';
 
 export class RightSidebar {
     constructor() {

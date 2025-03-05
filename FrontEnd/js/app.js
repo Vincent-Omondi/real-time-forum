@@ -16,7 +16,7 @@ import {
     getWebSocket, 
     closeWebSocket, 
     registerNotificationHandler 
-} from './store/ websocketManager.js';
+} from './store/websocketManager.js';
 
 let authInitialized = false;
 
