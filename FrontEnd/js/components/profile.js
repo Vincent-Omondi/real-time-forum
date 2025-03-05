@@ -283,7 +283,7 @@ export class Profile {
   async loadActivityContent(tab) {
     const contentDiv = document.getElementById('activities-content');
     contentDiv.innerHTML = '<p>Loading...</p>';
-
+  
     try {
       const endpoint = tab === 'posts' ? '/api/user/posts' : '/api/user/likes';
       const response = await fetch(endpoint, {
@@ -294,12 +294,32 @@ export class Profile {
           'Content-Type': 'application/json'
         }
       });
-
+  
+      // Log the raw response for debugging
+      const responseText = await response.text();
+      console.log('Raw response for activities:', responseText);
+  
       if (!response.ok) {
-        throw new Error(`Failed to load ${tab}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const data = await response.json();
+  
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON Parsing Error:', parseError);
+        console.error('Received response text:', responseText);
+        
+        contentDiv.innerHTML = `
+          <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>Failed to parse server response. Please contact support.</p>
+            <pre>${this.escapeHtml(responseText)}</pre>
+          </div>
+        `;
+        return;
+      }
+  
       this.renderActivityContent(tab, data);
     } catch (error) {
       console.error(`Error loading ${tab}:`, error);
@@ -307,6 +327,7 @@ export class Profile {
         <div class="error-message">
           <i class="fas fa-exclamation-circle"></i>
           <p>Failed to load content. Please try again later.</p>
+          <p class="error-details">${this.escapeHtml(error.message)}</p>
         </div>
       `;
     }
@@ -320,27 +341,43 @@ export class Profile {
   renderActivityContent(tab, data) {
     const contentDiv = document.getElementById('activities-content');
     if (!Array.isArray(data) || data.length === 0) {
-      contentDiv.innerHTML = `<p>No ${tab} found.</p>`;
-      return;
+        contentDiv.innerHTML = `<p>No ${tab} found.</p>`;
+        return;
     }
 
     const content = data.map(item => {
-      const { title, content, created_at, likes, id } = item;
-      return `
-        <div class="activity-item" data-link href="/viewPost?id=${id}">
-          <h4>${this.escapeHtml(title)}</h4>
-          <p>${this.escapeHtml(content.substring(0, 100))}${content.length > 100 ? '...' : ''}</p>
-          <div class="activity-meta">
-            <span>${new Date(created_at).toLocaleDateString()}</span>
-            ${tab === 'posts' ? 
-              `<span>${likes} like${likes !== 1 ? 's' : ''}</span>` : 
-              '<span>You liked this</span>'}
-          </div>
-        </div>
-      `;
+        const { title, content, created_at, likes, id } = item;
+        return `
+            <div class="activity-item" data-link="/viewPost" data-id="${id}">
+                <h4>${this.escapeHtml(title)}</h4>
+                <p>${this.escapeHtml(content.substring(0, 100))}${content.length > 100 ? '...' : ''}</p>
+                <div class="activity-meta">
+                    <span>${new Date(created_at).toLocaleDateString()}</span>
+                    ${tab === 'posts' ? 
+                        `<span>${likes} like${likes !== 1 ? 's' : ''}</span>` : 
+                        '<span>You liked this</span>'}
+                </div>
+            </div>
+        `;
     }).join('');
 
     contentDiv.innerHTML = content;
+
+    // Add click event listeners to navigate to post view
+    const activityItems = contentDiv.querySelectorAll('.activity-item');
+    activityItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            const postId = item.getAttribute('data-id');
+            const viewPostPath = item.getAttribute('data-link');
+            
+            if (window.router) {
+                window.router.navigateTo(`${viewPostPath}?id=${postId}`);
+            } else {
+                // Fallback navigation
+                window.location.href = `${viewPostPath}?id=${postId}`;
+            }
+        });
+    });
   }
 
   /**
