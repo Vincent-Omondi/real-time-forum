@@ -348,7 +348,7 @@ export class Profile {
     const content = data.map(item => {
         const { title, content, created_at, likes, id } = item;
         return `
-            <div class="activity-item" data-link="/viewPost" data-id="${id}">
+            <a href="/viewPost?id=${id}" data-link data-id="${id}" class="activity-item">
                 <h4>${this.escapeHtml(title)}</h4>
                 <p>${this.escapeHtml(content.substring(0, 100))}${content.length > 100 ? '...' : ''}</p>
                 <div class="activity-meta">
@@ -357,7 +357,7 @@ export class Profile {
                         `<span>${likes} like${likes !== 1 ? 's' : ''}</span>` : 
                         '<span>You liked this</span>'}
                 </div>
-            </div>
+            </a>
         `;
     }).join('');
 
@@ -368,7 +368,7 @@ export class Profile {
     activityItems.forEach(item => {
         item.addEventListener('click', (e) => {
             const postId = item.getAttribute('data-id');
-            const viewPostPath = item.getAttribute('data-link');
+            const viewPostPath = item.getAttribute('data-link') || '/viewPost';
             
             if (window.router) {
                 window.router.navigateTo(`${viewPostPath}?id=${postId}`);
