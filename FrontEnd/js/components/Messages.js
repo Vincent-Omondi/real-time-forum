@@ -9,7 +9,7 @@ import {
     registerMessageHandler, 
     unregisterMessageHandler,
     sendMessage
-} from '../store/ websocketManager.js';
+} from '../store/websocketManager.js';
 
 export class MessagesView {
     constructor() {
@@ -148,7 +148,6 @@ export class MessagesView {
         } else {
             contactsList.innerHTML = sortedConversations.map(conv => {
                 // Format the timestamp for display
-                console.log(conv.last_message_time)
                 const timestamp = conv.last_message_time 
                     ? formatTimestamp(conv.last_message_time, false) 
                     : formatTimestamp(conv.last_seen, false);
@@ -251,8 +250,56 @@ export class MessagesView {
         this.isLoading = true;
 
         try {
+            // First, ensure we have complete current user data
+            const currentUser = userStore.getCurrentUser();
+            if (currentUser && !currentUser.nickname) {
+                try {
+                    const profileResponse = await fetch('/api/user/profile', {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (profileResponse.ok) {
+                        const userData = await profileResponse.json();
+                        if (userData && userData.nickname) {
+                            // Update the user store with complete user data
+                            userStore.updateUser(currentUser.id, userData);
+                        }
+                    }
+                } catch (profileError) {
+                    console.error('Error fetching user profile:', profileError);
+                }
+            }
+
             const response = await fetch(`/api/messages/${userId}?page=${page}`);
-            const newMessages = await response.json();
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const responseText = await response.text();
+            if (!responseText) {
+                // Handle empty response
+                return [];
+            }
+
+            let newMessages;
+            try {
+                newMessages = JSON.parse(responseText);
+                // If the response is an object with a messages property, extract it
+                if (newMessages && typeof newMessages === 'object' && newMessages.messages) {
+                    newMessages = newMessages.messages;
+                }
+                // Ensure newMessages is an array
+                if (!Array.isArray(newMessages)) {
+                    newMessages = [];
+                }
+            } catch (parseError) {
+                console.error('Error parsing messages:', parseError);
+                newMessages = [];
+            }
             
             // If we got fewer messages than expected, we've reached the end
             if (newMessages.length === 0) {
@@ -280,6 +327,8 @@ export class MessagesView {
             this.currentPage = page;
         } catch (error) {
             console.error('Error loading messages:', error);
+            this.hasMoreMessages = false; // Prevent further loading attempts on error
+            this.messageStore.setMessages(userId, []); // Set empty messages to prevent undefined errors
         } finally {
             this.isLoading = false;
         }
@@ -289,7 +338,7 @@ export class MessagesView {
         const messagesList = document.querySelector('.messages-list');
         const messages = this.messageStore.messages.get(userId) || [];
         const currentUser = userStore.getCurrentUser();
-
+        
         // Group messages by date for better visual separation
         const groupedMessages = this.groupMessagesByDate(messages);
         
@@ -302,11 +351,36 @@ export class MessagesView {
             groupedMessages[date].forEach(msg => {
                 // Check if this message is part of a sequence from the same sender
                 const isContinuation = this.isMessageContinuation(msg, groupedMessages[date]);
+                const isCurrentUser = msg.sender_id === currentUser?.id;
+                
+                // Get the username for the message
+                let username;
+                if (isCurrentUser && currentUser) {
+                    // Try to get the username from multiple possible sources
+                    username = currentUser.nickname || 
+                             currentUser.username || 
+                             currentUser.name ||
+                             `User ${currentUser.id}`;
+                } else {
+                    // For other users, first try to get from the message if it has sender info
+                    username = msg.sender_nickname || msg.sender_username;
+                    
+                    // If not found in message, try to get from conversations
+                    if (!username) {
+                        const conversation = this.messageStore.conversations.find(conv => 
+                            conv.other_user_id === msg.sender_id
+                        );
+                        username = conversation?.username || `User ${msg.sender_id}`;
+                    }
+                }
                 
                 messagesHtml += `
-                    <div class="message ${msg.sender_id === currentUser.id ? 'sent' : 'received'} ${isContinuation ? 'continuation' : ''}">
+                    <div class="message ${isCurrentUser ? 'sent' : 'received'} ${isContinuation ? 'continuation' : ''}">
+                        ${!isContinuation ? `<div class="message-username">${username}</div>` : ''}
                         <div class="message-content">${msg.content}</div>
-                        <div class="message-time">${formatTimestamp(msg.created_at, true)}</div>
+                        <div class="message-info">
+                            <span class="message-time">${formatTimestamp(msg.created_at, true)}</span>
+                        </div>
                     </div>
                 `;
             });

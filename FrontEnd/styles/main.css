@@ -4,6 +4,7 @@
 @import 'components/main-content.css';
 @import 'components/header.css';
 @import 'components/rightsidebar.css';
+@import 'components/messages.css';
 
 :root {
     /* Light theme variables */

@@ -1,6 +1,6 @@
 // websocketManager.js
 
-import userStore from '../store/userStore.js';
+import userStore from './userStore.js';
 
 // Single WebSocket instance
 let websocket = null;

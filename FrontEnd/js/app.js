@@ -16,7 +16,7 @@ import {
     getWebSocket, 
     closeWebSocket, 
     registerNotificationHandler 
-} from './store/ websocketManager.js';
+} from './store/websocketManager.js';
 
 let authInitialized = false;
 
@@ -380,6 +380,10 @@ class Router {
   }
 
   navigateTo(url) {
+    if (!url) {
+      console.error('Navigation url is undefined:', url);
+      return;
+    }
     let newUrl;
     try {
       // If url is a relative path starting with '/', construct full URL
