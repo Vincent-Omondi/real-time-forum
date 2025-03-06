@@ -380,6 +380,10 @@ class Router {
   }
 
   navigateTo(url) {
+    if (!url) {
+      console.error('Navigation url is undefined:', url);
+      return;
+    }
     let newUrl;
     try {
       // If url is a relative path starting with '/', construct full URL
