@@ -287,35 +287,115 @@ export class RightSidebar {
     }
     
     startConversation(userId) {
-        // If we're on the messages page, just select the conversation
+        // If we're on the messages page, handle conversation selection
         if (window.location.pathname === '/messages') {
-            const messagesView = document.querySelector('.messages-container');
-            if (messagesView) {
-                // Find the contact item with this user ID and click it
-                const contactItem = messagesView.querySelector(`.contact-item[data-user-id="${userId}"]`);
+            const messagesContainer = document.querySelector('.messages-container');
+            if (messagesContainer) {
+                // First approach: Find the contact item with this user ID and click it
+                const contactItem = messagesContainer.querySelector(`.contact-item[data-user-id="${userId}"]`);
                 if (contactItem) {
                     contactItem.click();
                     return;
                 }
                 
-                // If contact not found in the list, trigger the selectConversation method
-                // This assumes MessagesView is accessible and has a selectConversation method
-                const messagesInstance = Object.keys(window).find(key => 
-                    window[key] && typeof window[key].selectConversation === 'function');
-                
-                if (messagesInstance) {
-                    window[messagesInstance].selectConversation(userId);
+                // Second approach: Try to access the MessagesView instance directly
+                const messagesView = this.findMessagesViewInstance();
+                if (messagesView && typeof messagesView.selectConversation === 'function') {
+                    messagesView.selectConversation(userId);
                     return;
                 }
+                
+                // Third approach: If the new conversation button exists, click it and then select the user
+                const newConversationBtn = messagesContainer.querySelector('.new-conversation-btn');
+                if (newConversationBtn) {
+                    // Click the button to open the user search modal
+                    newConversationBtn.click();
+                    
+                    // Wait for modal to appear and then click on the user
+                    setTimeout(() => {
+                        const userSearchModal = document.querySelector('.user-search-modal');
+                        if (userSearchModal) {
+                            const userItem = userSearchModal.querySelector(`.user-search-item[data-user-id="${userId}"]`);
+                            if (userItem) {
+                                userItem.click();
+                            } else {
+                                // If user not found in the modal, close it and try another approach
+                                const closeButton = userSearchModal.querySelector('#close-user-search');
+                                if (closeButton) {
+                                    closeButton.click();
+                                }
+                                this.triggerNewConversation(userId);
+                            }
+                        } else {
+                            // If modal didn't appear, try custom event approach
+                            this.triggerNewConversation(userId);
+                        }
+                    }, 100);
+                    return;
+                }
+                
+                // Fourth approach: As a last resort, try custom event
+                this.triggerNewConversation(userId);
+                return;
             }
         }
         
-        // Otherwise, navigate to messages page
+        // If not on messages page, navigate to it
+        // Store the user ID in sessionStorage to use it after navigation
+        sessionStorage.setItem('openConversationWith', userId);
         if (window.router) {
-            // Store the user ID in sessionStorage to use it after navigation
-            sessionStorage.setItem('openConversationWith', userId);
             window.router.navigateTo('/messages');
+        } else {
+            window.location.href = '/messages';
         }
+    }
+    
+    // Helper method to find the MessagesView instance
+    findMessagesViewInstance() {
+        // Check if it's directly accessible in the window object
+        for (const key in window) {
+            if (window[key] && typeof window[key].selectConversation === 'function') {
+                return window[key];
+            }
+        }
+        
+        // Try to find it through DOM searching
+        const app = document.querySelector('#app');
+        if (app && app.__vue__) {
+            // If using Vue, try to find the component
+            return this.findVueComponent(app.__vue__, 'MessagesView');
+        }
+        
+        return null;
+    }
+    
+    // Helper to find Vue component (if using Vue)
+    findVueComponent(instance, name) {
+        if (instance.$options && instance.$options.name === name) {
+            return instance;
+        }
+        
+        if (instance.$children) {
+            for (const child of instance.$children) {
+                const found = this.findVueComponent(child, name);
+                if (found) return found;
+            }
+        }
+        
+        return null;
+    }
+    
+    // Create a custom event to initiate a new conversation
+    triggerNewConversation(userId) {
+        // Create and dispatch a custom event for initiating a conversation
+        const event = new CustomEvent('startNewConversation', {
+            detail: { userId: userId },
+            bubbles: true
+        });
+        document.dispatchEvent(event);
+        
+        // Also store in sessionStorage as a fallback mechanism
+        sessionStorage.setItem('startConversationWithUser', userId);
     }
     
     handleIncomingMessage(message) {
