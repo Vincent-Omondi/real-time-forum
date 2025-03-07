@@ -20,6 +20,34 @@ export class MessagesView {
         this.messageStore = messageStore;
         this.messageHandler = this.handleIncomingMessage.bind(this);
         this.scrollPositionToMaintain = null;
+        
+        // Make the selectConversation method accessible to other components
+        // This is a workaround for component communication
+        this._bindGlobalAccess();
+        
+        // Listen for the custom event for starting a new conversation
+        document.addEventListener('startNewConversation', this._handleStartNewConversation.bind(this));
+    }
+    
+    // Make the instance methods accessible for component communication
+    _bindGlobalAccess() {
+        // Store a reference to this instance in a globally accessible location
+        if (!window._appComponentInstances) {
+            window._appComponentInstances = {};
+        }
+        window._appComponentInstances.messagesView = this;
+        
+        // For backward compatibility, also expose the selectConversation method directly
+        if (typeof window.selectConversation !== 'function') {
+            window.selectConversation = this.selectConversation.bind(this);
+        }
+    }
+    
+    // Handler for the custom event
+    _handleStartNewConversation(event) {
+        if (event.detail && event.detail.userId) {
+            this.selectConversation(event.detail.userId);
+        }
     }
 
     async loadMoreMessages(userId) {
@@ -70,7 +98,13 @@ export class MessagesView {
         // Register message handler instead of setting up WebSocket directly
         registerMessageHandler(this.messageHandler);
 
-            // Check if we need to open a specific conversation (from right sidebar)
+        // Check if we need to open a specific conversation from sessionStorage
+        this._checkPendingConversations();
+    }
+    
+    // Check for pending conversation requests from sessionStorage
+    _checkPendingConversations() {
+        // First check the openConversationWith (from navigation)
         const openConversationWith = sessionStorage.getItem('openConversationWith');
         if (openConversationWith) {
             // Clear the stored user ID
@@ -78,6 +112,17 @@ export class MessagesView {
             
             // Open the conversation
             this.selectConversation(openConversationWith);
+            return;
+        }
+        
+        // Also check the startConversationWithUser (from our custom approach)
+        const startWithUser = sessionStorage.getItem('startConversationWithUser');
+        if (startWithUser) {
+            // Clear the stored value
+            sessionStorage.removeItem('startConversationWithUser');
+            
+            // Open the conversation
+            this.selectConversation(startWithUser);
         }
     }
 
