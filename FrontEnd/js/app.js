@@ -216,12 +216,8 @@ async function logoutUser() {
     
   } catch (error) {
     console.error('Logout failed:', error);
-    // If logout fails, try to redirect to login anyway
-    if (window.router) {
-      window.router.navigateTo('/login');
-    } else {
-      window.location.href = new URL('/login', window.location.origin).href;
-    }
+    // If logout fails, redirect to login with page reload
+    window.location.href = new URL('/login', window.location.origin).href;
   }
 }
 
@@ -433,8 +429,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mainContent = new MainContent();
   const rightSidebar = new RightSidebar();
   
-  // Make mainContent globally accessible
+  // Make mainContent and rightSidebar globally accessible
   window.mainContent = mainContent;
+  window.rightSidebarInstance = rightSidebar;
   
   root.appendChild(header.render());
   container.appendChild(sidebar.render());
