@@ -2,6 +2,7 @@ import userStore from '../store/userStore.js';
 import { updateUIBasedOnAuth } from '../utils/uiUtils.js';
 import { initializeVoteStates, clearVoteStates } from '../utils/voteUtils.js';
 import voteStore from '../store/voteStore.js';
+import { RightSidebar } from './RightSidebar.js';
 
 /**
  * Auth component for handling authentication.
@@ -238,55 +239,133 @@ export class Auth {
    */
   attachLoginHandler() {
     const form = document.getElementById('loginForm');
+    const errorDiv = document.getElementById('loginError');
+    
+    // Add error styling if not already in CSS
+    errorDiv.style.color = '#dc3545';
+    errorDiv.style.backgroundColor = '#f8d7da';
+    errorDiv.style.border = '1px solid #f5c6cb';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.padding = '10px';
+    errorDiv.style.marginTop = '10px';
+    errorDiv.style.display = 'none';
+    
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
 
       try {
-        const response = await fetch('/api/login', {
+        // Clear previous errors and disable form
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+        form.querySelectorAll('input, button').forEach(el => el.disabled = true);
+        
+        console.log("Login attempt started...");
+        
+        const loginResponse = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
           credentials: 'include'
         });
 
-        if (!response.ok) {
-          throw new Error('Login failed');
+        console.log("Server response status:", loginResponse.status);
+        const loginResult = await loginResponse.json();
+        console.log("Server response data:", loginResult);
+
+        // Re-enable form inputs
+        form.querySelectorAll('input, button').forEach(el => el.disabled = false);
+
+        // Handle error response
+        if (!loginResponse.ok || loginResult.error) {
+          const errorMessage = loginResult.error || 'Login failed';
+          errorDiv.textContent = errorMessage;
+          errorDiv.style.display = 'block';
+          return; // Exit early on error
         }
 
-        const result = await response.json();
-        
-        if (result.csrfToken) {
-          localStorage.setItem('csrfToken', result.csrfToken);
-          let metaTag = document.querySelector('meta[name="csrf-token"]');
-          if (!metaTag) {
-            metaTag = document.createElement('meta');
-            metaTag.setAttribute('name', 'csrf-token');
-            document.head.appendChild(metaTag);
+        // Check if login was successful
+        if (loginResult.message === "Login successful") {
+          // Proceed with user data fetch and authentication
+          console.log("Login successful, fetching user data...");
+          const userDataResponse = await fetch('/api/check-auth', {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          let userData;
+          try {
+            const checkAuthResult = await userDataResponse.json();
+            console.log("Check-auth response:", checkAuthResult);
+            
+            if (checkAuthResult.user) {
+              userData = checkAuthResult.user;
+            } else if (checkAuthResult.userID) {
+              userData = { id: checkAuthResult.userID };
+            } else {
+              throw new Error('No user data in response');
+            }
+          } catch (jsonError) {
+            console.error("Failed to parse user data response:", jsonError);
+            userData = { id: data.identifier };
           }
-          metaTag.setAttribute('content', result.csrfToken);
-        }
-        
-        if (result.user) {
-          if (!userStore.getUser(result.user.id)) {
-            userStore.addUser(result.user);
+
+          if (!userData || !userData.id) {
+            throw new Error('Invalid user data received');
+          }
+
+          // Handle CSRF token if present
+          if (loginResult.csrfToken) {
+            localStorage.setItem('csrfToken', loginResult.csrfToken);
+            let metaTag = document.querySelector('meta[name="csrf-token"]');
+            if (!metaTag) {
+              metaTag = document.createElement('meta');
+              metaTag.setAttribute('name', 'csrf-token');
+              document.head.appendChild(metaTag);
+            }
+            metaTag.setAttribute('content', loginResult.csrfToken);
+          }
+          
+          // Update user store
+          if (!userStore.getUser(userData.id)) {
+            userStore.addUser(userData);
           } else {
-            userStore.updateUser(result.user.id, result.user);
+            userStore.updateUser(userData.id, userData);
           }
-          userStore.authenticateUser(result.user.id);
+          userStore.authenticateUser(userData.id);
+          
+          // Redirect on success
+          console.log("Authentication complete, redirecting to homepage...");
+          window.location.replace('/');
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        } else {
+          throw new Error('Unexpected server response');
         }
         
-        if (window.router) {
-          window.router.navigateTo('/');
-        } else {
-          window.location.href = new URL('/', window.location.origin).href;
-        }
-
-        // Initialize vote states after successful login
-        await initializeVoteStates();
       } catch (error) {
-        document.getElementById('loginError').textContent = error.message;
+        console.error("Login error:", error);
+        // Re-enable form inputs
+        form.querySelectorAll('input, button').forEach(el => el.disabled = false);
+        
+        // Handle different types of errors
+        let errorMessage;
+        if (error.message.includes('Invalid credentials')) {
+          errorMessage = 'Invalid email/nickname or password. Please try again.';
+        } else if (error.message.includes('Invalid user data') || 
+                  error.message.includes('Failed to fetch user data') ||
+                  error.message.includes('Unexpected server response')) {
+          errorMessage = 'An error occurred during login. Please try again later.';
+        } else {
+          errorMessage = 'Login failed. Please check your credentials and try again.';
+        }
+        
+        errorDiv.textContent = errorMessage;
+        errorDiv.style.display = 'block';
       }
     });
   }
@@ -338,11 +417,8 @@ export class Auth {
           userStore.authenticateUser(result.user.id);
         }
         
-        if (window.router) {
-          window.router.navigateTo('/');
-        } else {
-          window.location.href = new URL('/', window.location.origin).href;
-        }
+        // Reload the page instead of using router navigation
+        window.location.href = new URL('/', window.location.origin).href;
       } catch (error) {
         document.getElementById('registerError').textContent = error.message;
       }
@@ -387,11 +463,8 @@ export class Auth {
       userStore.logout(); // This will update the timestamp too
       voteStore.clearVotes();
       
-      if (window.router) {
-        window.router.navigateTo('/login');
-      } else {
-        window.location.href = new URL('/login', window.location.origin).href;
-      }
+      // Reload the page and redirect to login instead of using router
+      window.location.href = new URL('/login', window.location.origin).href;
     } catch (error) {
       console.error('Logout error:', error);
       alert('Failed to logout. Please try again.');
