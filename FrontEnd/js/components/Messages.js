@@ -20,6 +20,7 @@ export class MessagesView {
         this.messageStore = messageStore;
         this.messageHandler = this.handleIncomingMessage.bind(this);
         this.scrollPositionToMaintain = null;
+        this.pendingConversation = null;
         
         // Make the selectConversation method accessible to other components
         // This is a workaround for component communication
@@ -538,15 +539,15 @@ export class MessagesView {
         const input = document.querySelector('.message-input');
         const content = input.value.trim();
         if (!content || !this.messageStore.currentConversation) return;
-
+    
         const receiverId = parseInt(this.messageStore.currentConversation);
         const currentUser = userStore.getCurrentUser();
-
+    
         if (receiverId === currentUser.id) {
             alert('You cannot send messages to yourself.');
             return;
         }
-
+    
         // Create a temporary ID for immediate feedback
         const tempId = 'temp-' + Date.now();
         const timestamp = new Date();
@@ -559,7 +560,7 @@ export class MessagesView {
             timestamp,
             temp_id: tempId
         };
-
+    
         try {
             // Use the WebSocket manager to send the message
             const sent = sendMessage(message);
@@ -568,46 +569,68 @@ export class MessagesView {
                 alert('Could not connect to the messaging server. Please try again later.');
                 return;
             }
-
+    
             input.value = '';
             input.style.height = 'auto';
-
+    
             // Add message to store immediately for instant feedback
             this.messageStore.addMessage(receiverId.toString(), {
                 ...message,
                 created_at: message.timestamp
             });
             this.renderMessages(receiverId.toString());
-
-            // Update the conversation list to show the most recent message at the top
-            const updatedConversations = this.messageStore.conversations.map(conv => {
-                if (conv.other_user_id.toString() === receiverId.toString()) {
-                    return {
-                        ...conv,
-                        last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
-                        last_message_timestamp: timestamp
-                    };
-                }
-                return conv;
-            });
-            
-            // Sort conversations by timestamp (most recent first)
-            updatedConversations.sort((a, b) => {
-                const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
-                const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
-                return timeB - timeA;
-            });
-            
-            this.messageStore.setConversations(updatedConversations);
-            this.renderConversationList();
-            
-            // Optionally, you can still refresh from the server for consistency
-            // await this.loadConversations();
+    
+            // Check if this is a pending conversation that needs to be added to the list
+            if (this.pendingConversation && this.pendingConversation.other_user_id.toString() === receiverId.toString()) {
+                // Add the pending conversation to the conversations list with the message
+                const newConversation = {
+                    ...this.pendingConversation,
+                    last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
+                    last_message_timestamp: timestamp
+                };
+                
+                // Add to existing conversations
+                const updatedConversations = [...this.messageStore.conversations, newConversation];
+                
+                // Clear the pending conversation
+                this.pendingConversation = null;
+                
+                // Sort and update
+                updatedConversations.sort((a, b) => {
+                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
+                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    return timeB - timeA;
+                });
+                
+                this.messageStore.setConversations(updatedConversations);
+                this.renderConversationList();
+            } else {
+                // Update existing conversation
+                const updatedConversations = this.messageStore.conversations.map(conv => {
+                    if (conv.other_user_id.toString() === receiverId.toString()) {
+                        return {
+                            ...conv,
+                            last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
+                            last_message_timestamp: timestamp
+                        };
+                    }
+                    return conv;
+                });
+                
+                // Sort conversations by timestamp (most recent first)
+                updatedConversations.sort((a, b) => {
+                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
+                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    return timeB - timeA;
+                });
+                
+                this.messageStore.setConversations(updatedConversations);
+                this.renderConversationList();
+            }
         } catch (error) {
             console.error('Error sending message:', error);
         }
     }
-
     // Handle incoming messages from the WebSocket
     async handleIncomingMessage(message) {
         // First, check the message type
@@ -752,12 +775,16 @@ export class MessagesView {
         unregisterMessageHandler(this.messageHandler);
     }
 
+// Add this property to the MessagesView class constructor
+
+    // Updated selectConversation method
     async selectConversation(userId) {
         const currentUser = userStore.getCurrentUser();
 
         if (userId === currentUser.id) {
             return;
         }
+        
         // Get user info from API if not in conversations
         let selectedUser = this.messageStore.conversations.find(conv => conv.other_user_id.toString() === userId);
         
@@ -765,19 +792,27 @@ export class MessagesView {
             try {
                 const response = await fetch(`/api/users/${userId}`);
                 const userData = await response.json();
+                
+                // Create the user object but DON'T add to conversations list yet
                 selectedUser = {
                     other_user_id: parseInt(userId),
                     username: userData.nickname,
                     is_online: userData.is_online || false,
-                    last_seen: userData.last_seen || new Date()
+                    last_seen: userData.last_seen || new Date(),
+                    last_message: 'No messages yet'
                 };
+                
+                // Store as pending conversation instead of adding to contact list
+                this.pendingConversation = selectedUser;
+                
+                // No need to update the conversations list or re-render
             } catch (error) {
                 console.error('Error fetching user data:', error);
                 return;
             }
         }
 
-        // Update active contact
+        // Update active contact - only for existing conversations
         const contacts = document.querySelectorAll('.contact-item');
         contacts.forEach(contact => {
             contact.classList.remove('active');
