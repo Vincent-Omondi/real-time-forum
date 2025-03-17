@@ -160,7 +160,7 @@ export class RightSidebar {
                 is_online: conv.is_online,
                 last_seen: conv.last_seen,
                 last_message: conv.last_message,
-                last_message_timestamp: conv.last_message_timestamp
+                last_message_time: conv.last_message_time
             };
         });
         
@@ -176,7 +176,7 @@ export class RightSidebar {
                 is_online: user.is_online || false,
                 last_seen: user.last_seen || new Date(),
                 last_message: null,
-                last_message_timestamp: null
+                last_message_time: null
             }));
         
         // Combine and sort: first by last message timestamp (if exists), then alphabetically
@@ -184,12 +184,12 @@ export class RightSidebar {
         
         combined.sort((a, b) => {
             // If both have messages, sort by timestamp (most recent first)
-            if (a.last_message_timestamp && b.last_message_timestamp) {
-                return new Date(b.last_message_timestamp) - new Date(a.last_message_timestamp);
+            if (a.last_message_time && b.last_message_time) {
+                return new Date(b.last_message_time) - new Date(a.last_message_time);
             }
             // If only one has a message, that one comes first
-            if (a.last_message_timestamp) return -1;
-            if (b.last_message_timestamp) return 1;
+            if (a.last_message_time) return -1;
+            if (b.last_message_time) return 1;
             // If neither has messages, sort alphabetically
             return a.nickname.localeCompare(b.nickname);
         });
