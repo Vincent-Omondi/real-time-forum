@@ -400,11 +400,44 @@ export class RightSidebar {
     
     handleIncomingMessage(message) {
         // Handle new messages and status updates
-        if (message.type === 'message' || message.type === 'status_update') {
-            // Refresh conversations and re-render
+        if (message.type === 'message') {
+            // Refresh conversations and re-render for new messages
             this.fetchConversations().then(() => {
                 this.render();
             });
+        } 
+        else if (message.type === 'status_update') {
+            const userId = message.user_id.toString();
+            
+            // Update user status in the users array
+            this.users = this.users.map(user => {
+                if (user.id.toString() === userId) {
+                    return {
+                        ...user,
+                        is_online: message.is_online,
+                        last_seen: message.last_seen
+                    };
+                }
+                return user;
+            });
+            
+            // Also update in conversations list if the user exists there
+            this.conversations = this.conversations.map(conv => {
+                if (conv.other_user_id.toString() === userId) {
+                    return {
+                        ...conv,
+                        is_online: message.is_online,
+                        last_seen: message.last_seen
+                    };
+                }
+                return conv;
+            });
+            
+            // Update the messageStore with the updated conversations
+            messageStore.setConversations(this.conversations);
+            
+            // Re-render to reflect status changes
+            this.render();
         }
     }
     
