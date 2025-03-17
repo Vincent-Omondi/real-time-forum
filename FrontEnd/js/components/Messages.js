@@ -174,9 +174,9 @@ export class MessagesView {
         
         // Sort conversations by the timestamp of the last message (most recent first)
         const sortedConversations = [...this.messageStore.conversations].sort((a, b) => {
-            // If no last_message_timestamp, use last_seen as fallback
-            const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
-            const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+            // If no last_message_time, use last_seen as fallback
+            const timeA = a.last_message_time ? new Date(a.last_message_time) : new Date(a.last_seen);
+            const timeB = b.last_message_time ? new Date(b.last_message_time) : new Date(b.last_seen);
             // Sort in descending order (most recent first)
             return timeB - timeA;
         });
@@ -586,7 +586,7 @@ export class MessagesView {
                 const newConversation = {
                     ...this.pendingConversation,
                     last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
-                    last_message_timestamp: timestamp
+                    last_message_time: timestamp
                 };
                 
                 // Add to existing conversations
@@ -597,8 +597,8 @@ export class MessagesView {
                 
                 // Sort and update
                 updatedConversations.sort((a, b) => {
-                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
-                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    const timeA = a.last_message_time ? new Date(a.last_message_time) : new Date(a.last_seen);
+                    const timeB = b.last_message_time ? new Date(b.last_message_time) : new Date(b.last_seen);
                     return timeB - timeA;
                 });
                 
@@ -611,7 +611,7 @@ export class MessagesView {
                         return {
                             ...conv,
                             last_message: content.substring(0, 30) + (content.length > 30 ? '...' : ''),
-                            last_message_timestamp: timestamp
+                            last_message_time: timestamp
                         };
                     }
                     return conv;
@@ -619,8 +619,8 @@ export class MessagesView {
                 
                 // Sort conversations by timestamp (most recent first)
                 updatedConversations.sort((a, b) => {
-                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
-                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    const timeA = a.last_message_time ? new Date(a.last_message_time) : new Date(a.last_seen);
+                    const timeB = b.last_message_time ? new Date(b.last_message_time) : new Date(b.last_seen);
                     return timeB - timeA;
                 });
                 
@@ -688,7 +688,7 @@ export class MessagesView {
                         return {
                             ...conv,
                             last_message: message.content.substring(0, 30) + (message.content.length > 30 ? '...' : ''),
-                            last_message_timestamp: message.timestamp
+                            last_message_time: message.timestamp
                         };
                     }
                     return conv;
@@ -696,8 +696,8 @@ export class MessagesView {
                 
                 // Sort conversations by timestamp (most recent first)
                 updatedConversations.sort((a, b) => {
-                    const timeA = a.last_message_timestamp ? new Date(a.last_message_timestamp) : new Date(a.last_seen);
-                    const timeB = b.last_message_timestamp ? new Date(b.last_message_timestamp) : new Date(b.last_seen);
+                    const timeA = a.last_message_time ? new Date(a.last_message_time) : new Date(a.last_seen);
+                    const timeB = b.last_message_time ? new Date(b.last_message_time) : new Date(b.last_seen);
                     return timeB - timeA;
                 });
                 
