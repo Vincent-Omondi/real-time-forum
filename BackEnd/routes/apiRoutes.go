@@ -270,6 +270,15 @@ func APIRoutes(db *sql.DB, hub *websockets.MessageHub) {
 		middleware.ErrorHandler(handlers.ServeErrorPage),
 	))
 
+	http.Handle("/api/messages/unread-count", middleware.ApplyMiddleware(
+		controllers.GetUnreadMessageCountHandler(db),
+		middleware.SetCSPHeaders,
+		middleware.AuthMiddleware,
+		middleware.CORSMiddleware,
+		middleware.ErrorHandler(handlers.ServeErrorPage),
+		middleware.ValidatePathAndMethod("/api/messages/unread-count", http.MethodGet),
+	))
+
 	// WebSocket route
 	http.Handle("/ws", middleware.ApplyMiddleware(
 		&WebSocketHandler{
