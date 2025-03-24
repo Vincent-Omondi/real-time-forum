@@ -15,7 +15,8 @@ import { RightSidebar } from './components/RightSidebar.js';
 import { 
     getWebSocket, 
     closeWebSocket, 
-    registerNotificationHandler 
+    registerNotificationHandler, 
+    initializeWebSocket
 } from './store/websocketManager.js';
 
 let authInitialized = false;
@@ -453,10 +454,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize the WebSocket only if authenticated
     if (isAuthenticated) {
       // Get WebSocket instance from manager instead of creating directly
-      const ws = getWebSocket();
+      // const ws = getWebSocket();
+      initializeWebSocket();
       
       // Set up notification handlers for WebSocket messages
-      setupNotificationHandlers();
+      // setupNotificationHandlers();
 
       await rightSidebar.init();
 
