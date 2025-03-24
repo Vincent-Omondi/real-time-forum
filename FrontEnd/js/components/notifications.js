@@ -10,15 +10,16 @@ export function initNotifications() {
         notifications: [],
         
         newMessage(data) {
-            this.show(`New message from ${data.sender}: ${data.preview}`);
+            const message = `New message from ${data.sender}${data.preview ? ': ' + data.preview : ''}`;
+            this.show(message, 'message', data.userId);
         },
         
         newNotification(data) {
-            this.show(data.message);
+            this.show(data.message, 'general');
         },
         
-        show(message) {
-            const notification = createNotification(message);
+        show(message, type = 'general', userId = null) {
+            const notification = createNotification(message, type, userId);
             this.container.appendChild(notification);
             this.notifications.push(notification);
             
@@ -57,9 +58,18 @@ function createNotificationContainer() {
     return container;
 }
 
-function createNotification(message) {
+function createNotification(message, type, userId) {
     const notification = document.createElement('div');
-    notification.className = 'notification';
+    notification.className = `notification notification-${type}`;
+    notification.dataset.type = type;
+    
+    if (userId) {
+        notification.dataset.userId = userId;
+    }
+    
+    // Add a pointer cursor for clickable notifications
+    const cursor = type === 'message' ? 'pointer' : 'default';
+    
     notification.style.cssText = `
         background-color: #333;
         color: white;
@@ -68,6 +78,7 @@ function createNotification(message) {
         border-radius: 4px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         animation: slideIn 0.3s ease-out;
+        cursor: ${cursor};
     `;
     
     notification.innerHTML = `
@@ -89,7 +100,8 @@ function createNotification(message) {
         margin-left: 10px;
     `;
     
-    closeButton.addEventListener('click', () => {
+    closeButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent notification click
         notificationInstance.remove(notification);
     });
     
@@ -117,5 +129,9 @@ style.textContent = `
     .notification:hover {
         transform: translateX(-5px);
     }
+    
+    .notification-message {
+        background-color: #2b5797;
+    }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
