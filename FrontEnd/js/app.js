@@ -10,12 +10,14 @@ import { Sidebar } from './components/Sidebar.js';
 import { MainContent } from './components/MainContent.js';
 import { Auth } from './components/auth.js';
 import userStore from './store/userStore.js';
+import messageStore from './store/messageStore.js';
 import { MessagesView } from './components/Messages.js';
 import { RightSidebar } from './components/RightSidebar.js';
 import { 
     getWebSocket, 
     closeWebSocket, 
-    registerNotificationHandler 
+    registerNotificationHandler,
+    registerMessageHandler
 } from './store/websocketManager.js';
 
 let authInitialized = false;
@@ -413,6 +415,27 @@ function setupNotificationHandlers() {
       notifications.newNotification(data);
     }
   });
+
+  // Register message handler to show notifications for new messages from any route
+  registerMessageHandler((data) => {
+    if (data.type === 'message') {
+      const currentUser = userStore.getCurrentUser();
+      // Only show notification if you're NOT the sender
+      if (data.sender_id !== currentUser.id) {
+        // Find the sender's name
+        const messageStore = window.messageStore || { conversations: [] };
+        const senderConversation = messageStore.conversations.find(
+          conv => conv && conv.other_user_id && conv.other_user_id.toString() === data.sender_id.toString()
+        );
+        
+        const senderName = senderConversation ? senderConversation.username : 'Someone';
+        
+        notifications.newMessage({
+          sender: senderName
+        });
+      }
+    }
+  });
 }
 
 // Application initialization: renders global layout and starts router, WebSocket, and theme.
@@ -432,6 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Make mainContent and rightSidebar globally accessible
   window.mainContent = mainContent;
   window.rightSidebarInstance = rightSidebar;
+  window.messageStore = messageStore;
   
   root.appendChild(header.render());
   container.appendChild(sidebar.render());
