@@ -711,6 +711,7 @@ export class MessagesView {
             const currentUser = userStore.getCurrentUser();
             // Only show notification if you're NOT the sender AND you're not currently viewing that conversation
             if (message.sender_id !== currentUser.id && this.messageStore.currentConversation !== conversationId) {
+                message.notification_shown = true;
                 // Find the sender's name from the conversations list
                 const senderConversation = this.messageStore.conversations.find(
                     conv => conv.other_user_id.toString() === message.sender_id.toString()
@@ -775,9 +776,6 @@ export class MessagesView {
         unregisterMessageHandler(this.messageHandler);
     }
 
-// Add this property to the MessagesView class constructor
-
-    // Updated selectConversation method
     async selectConversation(userId) {
         const currentUser = userStore.getCurrentUser();
 
@@ -839,7 +837,28 @@ export class MessagesView {
         const messageInputContainer = document.querySelector('.message-input-container');
         messageInputContainer.style.display = 'block';
 
+        // Store current conversation ID and load messages
         this.messageStore.currentConversation = userId;
         await this.loadMessages(userId);
+        
+        // Mark conversation as read immediately when selected
+        this.messageStore.markConversationAsRead(userId);
+        
+        // Also call the API to mark messages as read on the server
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                            localStorage.getItem('csrfToken') || '';
+            
+            await fetch(`/api/messages/${userId}/read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'include'
+            });
+        } catch (error) {
+            console.error('Error marking messages as read on server:', error);
+        }
     }
 }
