@@ -711,16 +711,8 @@ export class MessagesView {
             const currentUser = userStore.getCurrentUser();
             // Only show notification if you're NOT the sender AND you're not currently viewing that conversation
             if (message.sender_id !== currentUser.id && this.messageStore.currentConversation !== conversationId) {
-                // Find the sender's name from the conversations list
-                const senderConversation = this.messageStore.conversations.find(
-                    conv => conv.other_user_id.toString() === message.sender_id.toString()
-                );
-                
-                const senderName = senderConversation ? senderConversation.username : 'Someone';
-                
-                initNotifications().newMessage({
-                    sender: senderName,
-                });
+                // Notification handling is now done globally in app.js
+                // No need to show notification here as it will be handled there
             }
         }
         else if (message.type === 'status_update') {
