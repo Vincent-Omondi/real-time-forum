@@ -33,6 +33,13 @@ type MessageController struct {
 	db *sql.DB
 }
 
+// Session represents a user session
+
+type Session struct {
+    UserID int64
+    Token  string
+}
+
 func NewMessageController(db *sql.DB) *MessageController {
 	return &MessageController{db: db}
 }
@@ -245,4 +252,152 @@ func GetUserById(db *sql.DB) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+// MarkMessagesAsRead marks all messages from a specific sender as read for the current user
+func (mc *MessageController) MarkMessagesAsRead(userID, senderID int64) error {
+	_, err := mc.db.Exec(`
+		UPDATE messages
+		SET read_at = CURRENT_TIMESTAMP
+		WHERE receiver_id = ? AND sender_id = ? AND read_at IS NULL
+	`, userID, senderID)
+	
+	if err != nil {
+		return fmt.Errorf("failed to mark messages as read: %v", err)
+	}
+	
+	return nil
+}
+
+// MarkMessagesAsReadHandler is an HTTP handler for marking messages as read
+func MarkMessagesAsReadHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only allow POST requests
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Set content type
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get the current user ID from the session
+		session, err := GetUserSession(r, db)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Parse the conversation partner's ID from the URL
+		path := r.URL.Path
+		parts := strings.Split(path, "/")
+		if len(parts) < 4 {
+			http.Error(w, "Invalid URL", http.StatusBadRequest)
+			return
+		}
+
+		// The URL format is expected to be /api/messages/{userId}/read
+		userIDStr := parts[len(parts)-2]
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid user ID", http.StatusBadRequest)
+			return
+		}
+
+		// Mark messages as read
+		mc := NewMessageController(db)
+		err = mc.MarkMessagesAsRead(session.UserID, userID)
+		if err != nil {
+			logger.Error("Failed to mark messages as read: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Return success
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	}
+}
+
+// GetUnreadMessageCountHandler gets the count of unread messages for the current user
+func GetUnreadMessageCountHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set content type
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get the current user ID from the session
+		session, err := GetUserSession(r, db)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Count unread messages
+		var totalUnread int
+		err = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM messages 
+			WHERE receiver_id = ? AND read_at IS NULL
+		`, session.UserID).Scan(&totalUnread)
+
+		if err != nil {
+			logger.Error("Failed to count unread messages: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Get unread counts by sender
+		rows, err := db.Query(`
+			SELECT sender_id, COUNT(*) as count
+			FROM messages
+			WHERE receiver_id = ? AND read_at IS NULL
+			GROUP BY sender_id
+		`, session.UserID)
+		
+		if err != nil {
+			logger.Error("Failed to group unread messages: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		unreadBySender := make(map[string]int)
+		for rows.Next() {
+			var senderID int64
+			var count int
+			err := rows.Scan(&senderID, &count)
+			if err != nil {
+				logger.Error("Failed to scan unread message count: %v", err)
+				continue
+			}
+			unreadBySender[strconv.FormatInt(senderID, 10)] = count
+		}
+
+		// Return counts
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"total": totalUnread,
+			"by_sender": unreadBySender,
+		})
+	}
+}
+
+
+// GetUserSession retrieves the user session from the request and database
+func GetUserSession(r *http.Request, db *sql.DB) (*Session, error) {
+    // Example implementation: Replace with your actual session management logic
+    cookie, err := r.Cookie("session_token")
+    if err != nil {
+        return nil, fmt.Errorf("session token not found")
+    }
+
+    var session Session
+    err = db.QueryRow(`
+        SELECT user_id, session_token 
+        FROM sessions 
+        WHERE session_token = ?
+    `, cookie.Value).Scan(&session.UserID, &session.Token)
+    if err != nil {
+        return nil, fmt.Errorf("invalid session token")
+    }
+    return &session, nil
 }
