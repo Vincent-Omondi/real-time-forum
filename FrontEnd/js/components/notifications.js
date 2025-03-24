@@ -10,7 +10,7 @@ export function initNotifications() {
         notifications: [],
         
         newMessage(data) {
-            this.show(`New message from ${data.sender}: ${data.preview}`);
+            this.show(`New message from ${data.sender}`);
         },
         
         newNotification(data) {
@@ -22,10 +22,10 @@ export function initNotifications() {
             this.container.appendChild(notification);
             this.notifications.push(notification);
             
-            // Auto remove after 5 seconds
+            // Auto remove after 10 seconds
             setTimeout(() => {
                 this.remove(notification);
-            }, 5000);
+            }, 10000);
         },
         
         remove(notification) {
@@ -61,13 +61,20 @@ function createNotification(message) {
     const notification = document.createElement('div');
     notification.className = 'notification';
     notification.style.cssText = `
-        background-color: #333;
-        color: white;
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
         padding: 15px 20px;
-        margin-bottom: 10px;
-        border-radius: 4px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        animation: slideIn 0.3s ease-out;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        animation: slideIn 0.4s ease-out;
+        cursor: pointer;
+        border-left: 4px solid var(--accent-color);
+        max-width: 320px;
+        min-width: 250px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     `;
     
     notification.innerHTML = `
@@ -77,19 +84,48 @@ function createNotification(message) {
         <button class="notification-close">&times;</button>
     `;
     
+    // Add click to navigate to messages if it's a message notification
+    if (message.startsWith('New message from')) {
+        notification.addEventListener('click', (e) => {
+            // Don't navigate if clicking the close button
+            if (!e.target.closest('.notification-close')) {
+                notificationInstance.remove(notification);
+                
+                // Navigate to messages page
+                if (window.router) {
+                    window.router.navigateTo('/messages');
+                } else {
+                    window.location.href = '/messages';
+                }
+            }
+        });
+    }
+    
     // Add close button functionality
     const closeButton = notification.querySelector('.notification-close');
     closeButton.style.cssText = `
         background: none;
         border: none;
-        color: white;
-        float: right;
+        color: var(--text-primary);
+        font-size: 22px;
         cursor: pointer;
-        font-size: 20px;
-        margin-left: 10px;
+        margin-left: 12px;
+        transition: color 0.2s;
+        font-weight: bold;
+        line-height: 1;
+        padding: 0 5px;
     `;
     
-    closeButton.addEventListener('click', () => {
+    closeButton.addEventListener('mouseover', () => {
+        closeButton.style.color = 'var(--accent-color)';
+    });
+    
+    closeButton.addEventListener('mouseout', () => {
+        closeButton.style.color = 'var(--text-primary)';
+    });
+    
+    closeButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent notification click handler from firing
         notificationInstance.remove(notification);
     });
     
@@ -111,11 +147,13 @@ style.textContent = `
     }
     
     .notification {
-        transition: transform 0.3s ease-out;
+        transition: all 0.3s ease-out;
     }
     
     .notification:hover {
         transform: translateX(-5px);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.4);
+        border-left: 4px solid var(--upvote-color);
     }
 `;
 document.head.appendChild(style); 
