@@ -219,9 +219,10 @@ func TestAddGetDeleteCSRFToken(t *testing.T) {
 		t.Errorf("Expected token %s, got %s", csrfToken, retrievedToken)
 	}
 
-	// Truncate to second precision to avoid test failures due to minor timestamp differences
-	if retrievedExpiresAt.Truncate(time.Second) != expiresAt.Truncate(time.Second) {
-		t.Errorf("Expected expiry time %v, got %v", expiresAt, retrievedExpiresAt)
+	// Compare timestamps with some tolerance
+	// SQLite may not store timezone information, so we'll compare Unix timestamps
+	if retrievedExpiresAt.Unix() != expiresAt.Unix() {
+		t.Errorf("Expected expiry time Unix timestamp %v, got %v", expiresAt.Unix(), retrievedExpiresAt.Unix())
 	}
 
 	// Test getting with empty session token
