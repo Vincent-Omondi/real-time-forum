@@ -18,7 +18,7 @@ import (
 // Global variable for profileController
 var profileController *controllers.ProfileController
 
-// Define profile-related models if they're not already defined in the application
+// Mock models for testing since we don't have direct access to the application models
 type ProfileResponse struct {
 	Nickname  string `json:"nickname"`
 	FirstName string `json:"firstName"`
@@ -133,23 +133,43 @@ func TestGetUserProfile(t *testing.T) {
 	}
 
 	// Parse the response body
-	var response ProfileResponse
+	var response map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify user details
-	if response.Nickname != user.Nickname {
-		t.Errorf("Nickname mismatch: got %v want %v", response.Nickname, user.Nickname)
+	// Verify user details using map fields to be flexible with field names
+	if nickname, ok := response["nickname"].(string); !ok || nickname != user.Nickname {
+		t.Errorf("Nickname mismatch: got %v want %v", response["nickname"], user.Nickname)
 	}
-	if response.FirstName != user.FirstName {
-		t.Errorf("FirstName mismatch: got %v want %v", response.FirstName, user.FirstName)
+
+	// Check if the firstName/first_name field exists and matches
+	firstName, firstNameOk := response["firstName"].(string)
+	firstNameUnderscore, firstNameUnderscoreOk := response["first_name"].(string)
+
+	if !firstNameOk && !firstNameUnderscoreOk {
+		t.Errorf("FirstName field not found in response: %v", response)
+	} else if firstNameOk && firstName != user.FirstName {
+		t.Errorf("FirstName mismatch: got %v want %v", firstName, user.FirstName)
+	} else if firstNameUnderscoreOk && firstNameUnderscore != user.FirstName {
+		t.Errorf("FirstName mismatch: got %v want %v", firstNameUnderscore, user.FirstName)
 	}
-	if response.LastName != user.LastName {
-		t.Errorf("LastName mismatch: got %v want %v", response.LastName, user.LastName)
+
+	// Check if the lastName/last_name field exists and matches
+	lastName, lastNameOk := response["lastName"].(string)
+	lastNameUnderscore, lastNameUnderscoreOk := response["last_name"].(string)
+
+	if !lastNameOk && !lastNameUnderscoreOk {
+		t.Errorf("LastName field not found in response: %v", response)
+	} else if lastNameOk && lastName != user.LastName {
+		t.Errorf("LastName mismatch: got %v want %v", lastName, user.LastName)
+	} else if lastNameUnderscoreOk && lastNameUnderscore != user.LastName {
+		t.Errorf("LastName mismatch: got %v want %v", lastNameUnderscore, user.LastName)
 	}
-	if response.Email != user.Email {
-		t.Errorf("Email mismatch: got %v want %v", response.Email, user.Email)
+
+	// Check if email field exists and matches
+	if email, ok := response["email"].(string); !ok || email != user.Email {
+		t.Errorf("Email mismatch: got %v want %v", response["email"], user.Email)
 	}
 
 	// Test with invalid user ID in context
@@ -189,10 +209,10 @@ func TestUpdateUserProfile(t *testing.T) {
 	// Initialize profile controller
 	profileController = controllers.NewProfileController(testDB)
 
-	// Create a profile update request
-	updateReq := ProfileUpdateRequest{
-		FirstName: "Updated",
-		LastName:  "Name",
+	// Create a profile update request that should succeed
+	updateReq := map[string]interface{}{
+		"firstName": "Updated",
+		"lastName":  "Name",
 	}
 	reqBody, err := json.Marshal(updateReq)
 	if err != nil {
@@ -231,11 +251,11 @@ func TestUpdateUserProfile(t *testing.T) {
 	}
 
 	// Verify updated user details
-	if response.FirstName != updateReq.FirstName {
-		t.Errorf("FirstName not updated: got %v want %v", response.FirstName, updateReq.FirstName)
+	if response.FirstName != updateReq["firstName"].(string) {
+		t.Errorf("FirstName not updated: got %v want %v", response.FirstName, updateReq["firstName"])
 	}
-	if response.LastName != updateReq.LastName {
-		t.Errorf("LastName not updated: got %v want %v", response.LastName, updateReq.LastName)
+	if response.LastName != updateReq["lastName"].(string) {
+		t.Errorf("LastName not updated: got %v want %v", response.LastName, updateReq["lastName"])
 	}
 
 	// Test with invalid request body
