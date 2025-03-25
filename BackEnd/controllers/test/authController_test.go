@@ -2,102 +2,13 @@
 package test
 
 import (
-	"database/sql"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/controllers"
-	"github.com/Vincent-Omondi/real-time-forum/BackEnd/database"
-	"github.com/Vincent-Omondi/real-time-forum/BackEnd/logger"
 	"github.com/Vincent-Omondi/real-time-forum/BackEnd/models"
 	_ "github.com/mattn/go-sqlite3"
 )
-
-var testDB *sql.DB
-var authController *controllers.AuthController
-
-// TestMain is the entry point for the tests
-func TestMain(m *testing.M) {
-	// Set up test environment
-	if err := setUp(); err != nil {
-		os.Exit(1)
-	}
-
-	// Run tests
-	code := m.Run()
-
-	// Clean up
-	tearDown()
-
-	os.Exit(code)
-}
-
-// setUp initializes the test environment
-func setUp() error {
-	// Initialize logger
-	if err := logger.Init(); err != nil {
-		return err
-	}
-
-	// Create directories
-	os.MkdirAll("logs", 0755)
-	os.MkdirAll("./BackEnd/database/storage", 0755)
-
-	// Initialize test database
-	var err error
-	testDB, err = database.Init("Test")
-	if err != nil {
-		return err
-	}
-
-	// Create auth controller
-	authController = controllers.NewAuthController(testDB)
-
-	// Clear database tables
-	clearTables()
-
-	return nil
-}
-
-// tearDown cleans up after tests
-func tearDown() {
-	if testDB != nil {
-		testDB.Close()
-	}
-
-	// Cleanup files
-	os.RemoveAll("logs")
-	os.RemoveAll("./BackEnd/database/storage")
-}
-
-// clearTables removes all data from the database tables
-func clearTables() {
-	tables := []string{"users", "sessions"}
-	for _, table := range tables {
-		testDB.Exec("DELETE FROM " + table)
-	}
-}
-
-// Helper function to register a test user
-func registerTestUser(t *testing.T) *models.User {
-	registerReq := &models.RegisterRequest{
-		Nickname:  "testuser",
-		Age:       25,
-		Gender:    "male",
-		FirstName: "Test",
-		LastName:  "User",
-		Email:     "test@example.com",
-		Password:  "Test@123",
-	}
-
-	user, err := authController.Register(registerReq)
-	if err != nil {
-		t.Fatalf("Failed to register test user: %v", err)
-	}
-
-	return user
-}
 
 // TestRegister tests the Register function
 func TestRegister(t *testing.T) {
@@ -189,13 +100,15 @@ func TestLogin(t *testing.T) {
 
 	// Valid login with email
 	loginWithEmailReq := &models.LoginRequest{
-		Identifier: "test@example.com",
+		Identifier: user.Email,
 		Password:   "Test@123",
 	}
 
 	loggedInUser, err := authController.Login(loginWithEmailReq)
 	if err != nil {
 		t.Errorf("Failed to login with email: %v", err)
+		// Don't continue the test if login failed
+		return
 	}
 
 	if loggedInUser.ID != user.ID {
@@ -204,13 +117,15 @@ func TestLogin(t *testing.T) {
 
 	// Valid login with nickname
 	loginWithNicknameReq := &models.LoginRequest{
-		Identifier: "testuser",
+		Identifier: user.Nickname,
 		Password:   "Test@123",
 	}
 
 	loggedInUser, err = authController.Login(loginWithNicknameReq)
 	if err != nil {
 		t.Errorf("Failed to login with nickname: %v", err)
+		// Don't continue the test if login failed
+		return
 	}
 
 	if loggedInUser.ID != user.ID {
@@ -219,7 +134,7 @@ func TestLogin(t *testing.T) {
 
 	// Invalid login - wrong password
 	wrongPasswordReq := &models.LoginRequest{
-		Identifier: "testuser",
+		Identifier: user.Nickname,
 		Password:   "WrongPassword@123",
 	}
 
